@@ -1,0 +1,13 @@
+# Build and install outputs
+build/
+install/
+log/
+
+# Python cache
+__pycache__/
+
+# ROS2 specific
+*.pyc
+*.log
+*.bag
+*.db3
