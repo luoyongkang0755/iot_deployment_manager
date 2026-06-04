@@ -1,92 +1,92 @@
-# Scout ROS 2 包集成报告
+# Scout ROS 2 Package Integration Report
 
-## 概述
-本报告记录了 Scout Mini 机器人 ROS 2 包的集成过程。Scout ROS 2 包已成功克隆至 `src/external/scout_ros2/` 目录。
+## Overview
+This report documents the integration process of Scout Mini robot ROS 2 packages. Scout ROS 2 packages have been successfully cloned to `src/external/scout_ros2/` directory.
 
-## 包结构
+## Package Structure
 
-### 1. `scout_msgs` 包
-**位置**：`src/external/scout_ros2/scout_msgs`  
-**版本**：0.1.0  
-**构建类型**：ament_cmake  
-**许可证**：BSD  
-**作用**：
-- 定义 Scout 机器人系列专用的 ROS 2 消息类型（msg）和服务（srv）。
-- 这些消息被 `scout_base` 和其他控制包使用，用于机器人状态通信、传感器数据编码等。
-- 包含消息定义文件，需要在其他包之前编译。
+### 1. `scout_msgs` Package
+**Location**: `src/external/scout_ros2/scout_msgs`  
+**Version**: 0.1.0  
+**Build Type**: ament_cmake  
+**License**: BSD  
+**Function**:
+- Defines ROS 2 message types (msg) and services (srv) specific to the Scout robot series.
+- These messages are used by `scout_base` and other control packages for robot state communication and sensor data encoding.
+- Contains message definition files that need to be compiled before other packages.
 
-**关键依赖**：
-- `std_msgs`：标准 ROS 消息
-- `rosidl_default_generators`：ROS 2 消息生成工具
+**Key Dependencies**:
+- `std_msgs`: Standard ROS messages
+- `rosidl_default_generators`: ROS 2 message generation tools
 
-**编译状态**：✅ **成功**
-
----
-
-### 2. `scout_description` 包
-**位置**：`src/external/scout_ros2/scout_description`  
-**版本**：0.1.0  
-**构建类型**：ament_cmake  
-**许可证**：BSD  
-**作用**：
-- **包含机器人完整 3D 模型**：Scout V2 和 Scout Mini 的 URDF/xacro 描述。
-- 定义机器人的几何结构、关节、链接和物理参数。
-- 包含网格文件（meshes），用于 RViz 可视化和仿真。
-- 提供启动文件来加载和发布机器人模型。
-
-**URDF/xacro 文件**：
-- `scout_v2.urdf`：Scout V2 的完整 URDF 模型
-- `scout_v2.xacro`：Scout V2 的参数化 Xacro 模型
-- `scout_wheel_type1.xacro`、`scout_wheel_type2.xacro`：轮子类型参数
-- `urdf/` 目录：所有模型定义文件
-- `meshes/` 目录：STL 网格文件（机器人各部分的 3D 几何）
-
-**启动文件**：
-- `launch/scout_base_description.launch.py`：加载并发布 Scout 机器人 URDF
-
-**编译状态**：✅ **成功**
+**Build Status**: ✅ **Success**
 
 ---
 
-### 3. `scout_base` 包
-**位置**：`src/external/scout_ros2/scout_base`  
-**版本**：0.1.0  
-**构建类型**：ament_cmake  
-**许可证**：BSD  
-**作用**：
-- 机器人底层控制节点和驱动程序。
-- 提供 ROS 2 节点，与 Scout 机器人硬件通信。
-- 发布机器人状态（电池、速度、IMU 等）和订阅控制命令。
-- 包含 odom 发布器和 tf 广播器用于定位。
+### 2. `scout_description` Package
+**Location**: `src/external/scout_ros2/scout_description`  
+**Version**: 0.1.0  
+**Build Type**: ament_cmake  
+**License**: BSD  
+**Function**:
+- **Contains complete 3D robot models**: URDF/xacro descriptions for Scout V2 and Scout Mini.
+- Defines robot geometry, joints, links, and physical parameters.
+- Includes mesh files for RViz visualization and simulation.
+- Provides launch files to load and publish the robot model.
 
-**关键依赖**：
-- `geometry_msgs`：几何消息（Twist、TransformStamped）
-- `nav_msgs`：导航消息（Odometry）
-- `sensor_msgs`：传感器消息（Imu、LaserScan）
-- `rclcpp`：C++ ROS 2 客户端库
-- `tf2`、`tf2_ros`：变换库
-- `scout_msgs`：Scout 专用消息
-- **`ugv_sdk`**：Scout 机器人底层 SDK（⚠️ **需单独安装**）
+**URDF/xacro Files**:
+- `scout_v2.urdf`: Complete URDF model for Scout V2
+- `scout_v2.xacro`: Parameterized Xacro model for Scout V2
+- `scout_wheel_type1.xacro`, `scout_wheel_type2.xacro`: Wheel type parameters
+- `urdf/` directory: All model definition files
+- `meshes/` directory: STL mesh files (3D geometry of robot parts)
 
-**启动文件**：
-- `launch/scout_base.launch.py`：通用 Scout 启动文件
-- `launch/scout_mini_base.launch.py`：Scout Mini 启动文件
-- `launch/scout_mini_omni_base.launch.py`：Scout Mini Omni（全向轮版本）启动文件
+**Launch Files**:
+- `launch/scout_base_description.launch.py`: Loads and publishes Scout robot URDF
 
-**编译状态**：⚠️ **失败**
-- 原因：缺少 `ugv_sdk` 依赖（Scout 官方底层 SDK）
-- 说明：这是正常的，因为 ugv_sdk 是分开的专有包，需要从 Agilex Robotics 获取或单独编译
+**Build Status**: ✅ **Success**
 
 ---
 
-## 集成位置
+### 3. `scout_base` Package
+**Location**: `src/external/scout_ros2/scout_base`  
+**Version**: 0.1.0  
+**Build Type**: ament_cmake  
+**License**: BSD  
+**Function**:
+- Low-level robot control nodes and drivers.
+- Provides ROS 2 nodes to communicate with Scout robot hardware.
+- Publishes robot state (battery, velocity, IMU, etc.) and subscribes to control commands.
+- Includes odom publisher and tf broadcaster for localization.
+
+**Key Dependencies**:
+- `geometry_msgs`: Geometry messages (Twist, TransformStamped)
+- `nav_msgs`: Navigation messages (Odometry)
+- `sensor_msgs`: Sensor messages (Imu, LaserScan)
+- `rclcpp`: C++ ROS 2 client library
+- `tf2`, `tf2_ros`: Transform libraries
+- `scout_msgs`: Scout-specific messages
+- **`ugv_sdk`**: Scout robot low-level SDK (⚠️ **Requires separate installation**)
+
+**Launch Files**:
+- `launch/scout_base.launch.py`: General Scout launch file
+- `launch/scout_mini_base.launch.py`: Scout Mini launch file
+- `launch/scout_mini_omni_base.launch.py`: Scout Mini Omni (omnidirectional wheel version) launch file
+
+**Build Status**: ⚠️ **Failed**
+- Reason: Missing `ugv_sdk` dependency (official Scout low-level SDK)
+- Note: This is expected behavior since ugv_sdk is a separate proprietary package that needs to be obtained from Agilex Robotics or compiled separately
+
+---
+
+## Integration Location
 
 ```
 scout_nav2/
 ├── src/
-│   ├── ros2_learning_examples/     # 项目自有包
+│   ├── ros2_learning_examples/     # Project packages
 │   └── external/
-│       └── scout_ros2/              # ✅ Scout ROS2 包（新增）
+│       └── scout_ros2/              # ✅ Scout ROS2 packages (newly added)
 │           ├── scout_msgs/
 │           ├── scout_description/
 │           └── scout_base/
@@ -97,125 +97,123 @@ scout_nav2/
 
 ---
 
-## 构建结果
+## Build Results
 
-运行命令：
+Run command:
 ```bash
 colcon build --packages-select scout_msgs scout_description scout_base ros2_learning_examples
 ```
 
-**输出摘要**：
+**Output Summary**:
 ```
 Summary: 3 packages finished [5.11s]
   1 package failed: scout_base
   1 package had stderr output: scout_base
 ```
 
-**详细状态**：
-| 包名                  | 状态 | 耗时   | 说明 |
-|----------------------|------|--------|------|
-| `ros2_learning_examples` | ✅ 成功 | 0.80s | 项目示例包 |
-| `scout_description` | ✅ 成功 | 0.93s | 机器人模型定义 |
-| `scout_msgs`        | ✅ 成功 | 3.87s | 消息定义 |
-| `scout_base`        | ⚠️ 失败 | 1.06s | 缺少 ugv_sdk 依赖 |
+**Detailed Status**:
+| Package Name               | Status | Time   | Description |
+|---------------------------|--------|--------|-------------|
+| `ros2_learning_examples` | ✅ Success | 0.80s | Project example package |
+| `scout_description` | ✅ Success | 0.93s | Robot model definition |
+| `scout_msgs`        | ✅ Success | 3.87s | Message definitions |
+| `scout_base`        | ⚠️ Failed | 1.06s | Missing ugv_sdk dependency |
 
 ---
 
-## 关键文件与目录
+## Key Files and Directories
 
-### scout_description（机器人模型）
+### scout_description (Robot Model)
 ```
 scout_description/
 ├── urdf/
-│   ├── scout_v2.urdf           # Scout V2 URDF 模型
-│   ├── scout_v2.xacro          # Scout V2 Xacro 参数化模型
-│   ├── scout_wheel_type1.xacro # 轮子类型 1（履带式）
-│   └── scout_wheel_type2.xacro # 轮子类型 2（轮式）
-├── meshes/                      # 3D 网格文件（.stl）
+│   ├── scout_v2.urdf           # Scout V2 URDF model
+│   ├── scout_v2.xacro          # Scout V2 Xacro parameterized model
+│   ├── scout_wheel_type1.xacro # Wheel type 1 (tracked)
+│   └── scout_wheel_type2.xacro # Wheel type 2 (wheeled)
+├── meshes/                      # 3D mesh files (.stl)
 ├── launch/
-│   └── scout_base_description.launch.py  # URDF 发布启动文件
+│   └── scout_base_description.launch.py  # URDF publication launch file
 └── package.xml
 ```
 
-### scout_base（控制驱动）
+### scout_base (Control Driver)
 ```
 scout_base/
-├── src/                        # C++ 源码（控制节点、驱动）
+├── src/                        # C++ source code (control nodes, drivers)
 ├── launch/
-│   ├── scout_base.launch.py             # 通用启动
-│   ├── scout_mini_base.launch.py        # Scout Mini 启动
-│   └── scout_mini_omni_base.launch.py   # Scout Mini Omni 启动
+│   ├── scout_base.launch.py             # General launch
+│   ├── scout_mini_base.launch.py        # Scout Mini launch
+│   └── scout_mini_omni_base.launch.py   # Scout Mini Omni launch
 ├── package.xml
 └── CMakeLists.txt
 ```
 
 ---
 
-## 如何使用 Scout 包
+## How to Use Scout Packages
 
-### 1. 检查已安装的 Scout 包
+### 1. Check Installed Scout Packages
 
 ```bash
 source install/setup.bash
 ros2 pkg list | grep scout
 ```
 
-**预期输出**：
+**Expected Output**:
 ```
 scout_description
 scout_msgs
-# scout_base （如果安装了 ugv_sdk，此处会出现）
+# scout_base (will appear here if ugv_sdk is installed)
 ```
 
-### 2. 可视化 Scout 机器人模型（需要 RViz2）
+### 2. Visualize Scout Robot Model (Requires RViz2)
 
 ```bash
-# 方式1：使用启动文件
+# Method 1: Use launch file
 ros2 launch scout_description scout_base_description.launch.py
 
-# 方式2：直接发布 URDF
+# Method 2: Publish URDF directly
 ros2 param set /robot_description "$(cat src/external/scout_ros2/scout_description/urdf/scout_v2.urdf)"
 rviz2
 ```
 
-### 3. 启动 Scout 底层驱动（需要硬件或仿真）
+### 3. Launch Scout Low-Level Driver (Requires Hardware or Simulation)
 
 ```bash
-# 连接真实 Scout 机器人或仿真环境后
+# After connecting to real Scout robot or simulation environment
 ros2 launch scout_base scout_mini_base.launch.py
 ```
 
 ---
 
-## 依赖解决方案
+## Dependency Solution
 
-### 缺少 ugv_sdk 问题
+### Missing ugv_sdk Issue
 
-**原因**：scout_base 依赖于 Agilex Robotics 官方的 ugv_sdk，用于与硬件通信。
+**Reason**: scout_base depends on Agilex Robotics' official ugv_sdk for hardware communication.
 
-**解决方案**：
+**Solutions**:
 
-1. **从官方源克隆**：
+1. **Clone from official source**:
 ```bash
 cd src/external
 git clone https://github.com/agilexrobotics/ugv_sdk.git
 colcon build --packages-select ugv_sdk
 ```
 
-2. **暂不安装**：scout_description 和 scout_msgs 已经可用，可用于模型可视化和消息定义。
+2. **Do not install for now**: scout_description and scout_msgs are already available for model visualization and message definitions.
 
 ---
 
-## 总结
+## Summary
 
-| 项目 | 结果 |
-|------|------|
-| 包集成位置 | ✅ `src/external/scout_ros2/` |
-| scout_msgs 编译 | ✅ 成功 |
-| scout_description 编译 | ✅ 成功（包含 URDF 和网格） |
-| scout_base 编译 | ⚠️ 需要 ugv_sdk |
-| 启动文件 | ✅ 4 个启动文件可用 |
-| 模型可视化 | ✅ 可通过 RViz2 显示 |
-| 机器人驱动 | ⚠️ 需要 ugv_sdk 和硬件连接 |
-
-
+| Item | Result |
+|------|--------|
+| Package Integration Location | ✅ `src/external/scout_ros2/` |
+| scout_msgs Compilation | ✅ Success |
+| scout_description Compilation | ✅ Success (includes URDF and meshes) |
+| scout_base Compilation | ⚠️ Requires ugv_sdk |
+| Launch Files | ✅ 4 launch files available |
+| Model Visualization | ✅ Displayable via RViz2 |
+| Robot Driver | ⚠️ Requires ugv_sdk and hardware connection |
