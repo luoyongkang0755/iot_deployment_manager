@@ -46,7 +46,6 @@
 - **构建类型**：`ament_python`
 
 ## 关键命令
-
 ```bash
 # 进入工作空间的 src 目录
 cd src
@@ -65,6 +64,7 @@ source install/setup.bash
 
 # 验证包是否已安装
 ros2 pkg list | grep ros2_learning_examples
+```
 
 ## [2025-06-04] Task 4 – ROS 2 Publisher and Subscriber
 
@@ -90,7 +90,7 @@ ros2 run ros2_learning_examples basic_subscriber
 ros2 topic list
 ros2 topic echo /student_status
 ros2 topic hz /student_status
-
+```
 ## 任务5 — ROS 2 启动文件
 
 **目标**：用一个启动文件同时启动发布者和订阅者节点。
