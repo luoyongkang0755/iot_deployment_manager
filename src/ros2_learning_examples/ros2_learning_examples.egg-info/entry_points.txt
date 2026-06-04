@@ -1,0 +1,3 @@
+[console_scripts]
+basic_publisher = ros2_learning_examples.basic_publisher:main
+basic_subscriber = ros2_learning_examples.basic_subscriber:main

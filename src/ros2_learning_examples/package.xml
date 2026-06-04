@@ -4,7 +4,7 @@
   <name>ros2_learning_examples</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer email="1452150597@qq.com">luoyongkang</maintainer>
+  <maintainer email="rayoukou@gmail.com">luoyongkang</maintainer>
   <license>TODO: License declaration</license>
 
   <test_depend>ament_copyright</test_depend>

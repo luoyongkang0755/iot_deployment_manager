@@ -1,4 +1,5 @@
 from setuptools import find_packages, setup
+from glob import glob
 
 package_name = 'ros2_learning_examples'
 
@@ -10,11 +11,12 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', glob('launch/*.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='luoyongkang',
-    maintainer_email='1452150597@qq.com',
+    maintainer_email='rayoukou@gmail.com',
     description='TODO: Package description',
     license='TODO: License declaration',
     extras_require={
@@ -24,6 +26,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            "basic_publisher = ros2_learning_examples.basic_publisher:main",
+            "basic_subscriber = ros2_learning_examples.basic_subscriber:main",
         ],
     },
 )
