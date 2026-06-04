@@ -6,8 +6,23 @@ cd "$(dirname "$0")/.."
 IMAGE_NAME="ros2_humble_minimal"
 DOCKERFILE_PATH="docker/Dockerfile"
 
+xhost +local:docker 2>/dev/null || true
+
 echo "Building Dokcer image: $IMAGE_NAME"
 docker build -t "$IMAGE_NAME" -f "$DOCKERFILE_PATH" .
 
-echo "RUNING CONTAINER..."
-docker run -it --rm "$IMAGE_NAME"
+echo "Running container with GUI support.."
+
+docker run -it --rm \
+    --name scout_nav2 \
+    --net=host \
+    --env="DISPLAY=$DISPLAY" \
+    --env="QT_X11_NO_MITSHM=1" \
+    --volume="/tmp/.x11-unix:/tmp/.x11-unix:rw" \
+    --volume="$HOME/.Xauthority:/root/.Xauthority:rw" \
+    --env="XAUTHORITY=/root/.Xauthority" \
+    --privileged \
+    --device=/dev/dri:/dev/dri \
+    "$IMAGE_NAME"
+
+xhost -local:docker 2>/dev/null || true

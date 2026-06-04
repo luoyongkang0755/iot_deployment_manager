@@ -3,7 +3,15 @@ FROM ros:humble-ros-base
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
-    apt-get install -y python3-colcon-common-extensions build-essential && \
+    apt-get install -y \
+        python3-colcon-common-extensions \
+        build-essential \
+        ros-humble-rviz2 \
+        ros-humble-gazebo-ros-pkgs \
+        ros-humble-gazebo-ros2-control \
+        mesa-utils \
+    && \
+    
     rm -rf /var/lib/apt/lists/*
 
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
