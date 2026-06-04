@@ -1,0 +1,3 @@
+[submodule "src/external/scout_ros2"]
+	path = src/external/scout_ros2
+	url = https://github.com/agilexrobotics/scout_ros2.git
