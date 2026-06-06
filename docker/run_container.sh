@@ -2,7 +2,7 @@
 set -e
 
 cd "$(dirname "$0")/.."
-
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IMAGE_NAME="ros2_humble_minimal"
 DOCKERFILE_PATH="docker/Dockerfile"
 
@@ -20,6 +20,7 @@ docker run -it --rm \
     --env="QT_X11_NO_MITSHM=1" \
     --volume="/tmp/.x11-unix:/tmp/.x11-unix:rw" \
     --volume="$HOME/.Xauthority:/root/.Xauthority:rw" \
+    --volume "$REPO_ROOT"/src:/ws/src \
     --env="XAUTHORITY=/root/.Xauthority" \
     --privileged \
     --device=/dev/dri:/dev/dri \

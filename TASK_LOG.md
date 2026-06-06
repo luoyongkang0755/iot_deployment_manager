@@ -208,3 +208,57 @@ Therefore, a static transform (`static_transform_publisher`) must be established
   * Launch file descriptions
   * ugv_sdk dependency solution
   * Usage examples (RViz visualization, driver launch)
+
+# Task 10 — Launch Scout Mini Model in RViz2
+
+## Objective
+Verify that the Scout Mini robot model is visible in RViz2.
+
+## Issues Fixed
+**1. Missing Scout Mini model**: The cloned `scout_description` package only contained `scout_v2.xacro`, no Scout Mini model existed.
+**2. Incorrect DAE file paths**: The xacro files referenced `package://scout_description/meshes/scout_v2/*.dae`, but the actual mesh files are located directly in `meshes/` directory.
+
+## Files Modified/Created
+- **Modified**: `scout_description/urdf/scout_v2.xacro` - Fixed mesh path from `meshes/scout_v2/base_link.dae` to `meshes/base_link.dae`
+- **Modified**: `scout_description/urdf/scout_wheel_type1.xacro` - Fixed wheel mesh path
+- **Modified**: `scout_description/urdf/scout_wheel_type2.xacro` - Fixed wheel mesh path
+- **Created**: `scout_description/urdf/scout_mini.xacro` - New Scout Mini model with appropriate dimensions
+- **Created**: `scout_description/launch/display.launch.py` - RViz2 display launch file with robot_state_publisher, joint_state_publisher, and rviz2 nodes
+
+## Key Commands
+```bash
+# Build the scout_description package
+colcon build --packages-select scout_description
+source install/setup.bash
+
+# Launch Scout Mini model in RViz2
+ros2 launch scout_description display.launch.py
+
+# Launch Scout V2 model (optional)
+ros2 launch scout_description display.launch.py model:=scout_v2.xacro
+
+# Verify robot description
+ros2 topic echo /robot_description --once
+
+# View TF tree
+ros2 run tf2_tools view_frames
+```
+
+## Verification Results
+- ✅ Scout Mini model visible in RViz2
+- ✅ TF tree shows correct structure (base_link, base_footprint, inertial_link, wheel links)
+- ✅ Robot description topic published correctly
+- ✅ Joint states published correctly
+
+## Evidence
+- RViz2 screenshot showing Scout Mini model (`screenshots/task10_rviz.png`)
+- TF tree image (`screenshots/task10_tf_tree.png`)
+- Terminal output logs (`media/LOG/task10.log`)
+
+## Committed Files
+- scout_description/urdf/scout_v2.xacro (updated)
+- scout_description/urdf/scout_wheel_type1.xacro (updated)
+- scout_description/urdf/scout_wheel_type2.xacro (updated)
+- scout_description/urdf/scout_mini.xacro (new)
+- scout_description/launch/display.launch.py (new)
+- TASK_LOG.md (updated)
