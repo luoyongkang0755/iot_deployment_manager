@@ -4,19 +4,24 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 SHELL ["/bin/bash", "-c"]
 
+# 使用清华大学镜像源加速 apt
+RUN sed -i 's@//.*archive.ubuntu.com@//mirrors.tuna.tsinghua.edu.cn@g' /etc/apt/sources.list && \
+    sed -i 's@//.*security.ubuntu.com@//mirrors.tuna.tsinghua.edu.cn@g' /etc/apt/sources.list
+
 # 基础工具与 colcon 安装
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ros-humble-joint-state-publisher \
         ros-humble-joint-state-publisher-gui \
-        ros-humble-xacro \
 	build-essential \
 	cmake \
+	nano \
 	git \
 	python3-pip \
 	python3-colcon-common-extensions \
 	python3-rosdep \
 	ros-humble-rviz2 \
 	ros-humble-gazebo-ros-pkgs \
+	ros-humble-ros-gz-sim \
 	ros-humble-xacro \
 	ros-humble-tf2-tools \
 	curl \
@@ -26,8 +31,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	libasio-dev \
 	&& rm -rf /var/lib/apt/lists/*
 
-# 初始化 rosdep（若未初始化则执行 init；保留 update 的真实错误以便调试）
-RUN if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then rosdep init; fi && rosdep update
+# 配置 rosdep 使用清华大学镜像源（解决 raw.githubusercontent.com 超时问题）
+RUN mkdir -p /etc/ros/rosdep/sources.list.d && \
+    echo "yaml https://mirrors.tuna.tsinghua.edu.cn/rosdistro/rosdep/base.yaml" > /etc/ros/rosdep/sources.list.d/20-default.list && \
+    echo "yaml https://mirrors.tuna.tsinghua.edu.cn/rosdistro/rosdep/python.yaml" >> /etc/ros/rosdep/sources.list.d/20-default.list && \
+    echo "yaml https://mirrors.tuna.tsinghua.edu.cn/rosdistro/rosdep/osx-homebrew.yaml osx" >> /etc/ros/rosdep/sources.list.d/20-default.list
+
+# 更新 rosdep（带重试机制）
+ENV ROSDEP_SOURCE_TIMEOUT=300
+RUN for i in 1 2 3 4 5; do \
+        echo "Attempt $i: rosdep update..." && \
+        rosdep update && break || (echo "Failed, retrying in 10s..." && sleep 10); \
+    done
 
 # 创建工作区，复制源码并安装包依赖后构建
 WORKDIR /ws

@@ -262,3 +262,144 @@ ros2 run tf2_tools view_frames
 - scout_description/urdf/scout_mini.xacro (new)
 - scout_description/launch/display.launch.py (new)
 - TASK_LOG.md (updated)
+
+# Task 11 — Launch Scout Mini in Gazebo
+
+## Objective
+Launch Scout Mini robot into Gazebo simulation world.
+
+## Issues Fixed
+**1. Missing `ros_gz_sim` package**: Docker image didn't include `ros-humble-ros-gz-sim`, causing CMake configuration error.
+**2. Gazebo Fuel download failure**: World file used `model://` URI which required online download, fixed by using inline model definitions.
+**3. DAE mesh file path resolution**: `package://` URI not resolved by Gazebo, fixed by using `file://` absolute path via xacro parameter.
+**4. Robot position**: Initial spawn z=0.1 caused wheels to sink into ground, corrected to z=0.205.
+
+## Files Created/Modified
+- **Created**: `src/scout_mini_dual_lidar_gazebo/` - New ROS2 package for Gazebo simulation
+  - `package.xml` - Package dependencies (scout_description, ros_gz_sim, robot_state_publisher)
+  - `CMakeLists.txt` - CMake build configuration, installs launch and worlds directories
+  - `launch/scout_mini_gazebo.launch.py` - Gazebo launch file
+- **Created**: `worlds/simple_test_world.world` - SDF world file with inline ground plane and sun
+- **Modified**: `scout_description/urdf/scout_mini.xacro` - Added `mesh_prefix` parameter for mesh path
+- **Modified**: `scout_description/urdf/scout_wheel_type1.xacro` - Use `${mesh_prefix}` for mesh path
+- **Modified**: `scout_description/urdf/scout_wheel_type2.xacro` - Use `${mesh_prefix}` for mesh path
+- **Modified**: `docker/Dockerfile` - Added `ros-humble-ros-gz-sim` package, configured Tsinghua mirrors for rosdep
+
+## Launch File Explanation (`scout_mini_gazebo.launch.py`)
+
+The launch file orchestrates the entire Gazebo simulation startup process:
+
+### 1. Package Path Resolution
+```python
+pkg_scout_description = get_package_share_directory('scout_description')
+pkg_scout_gazebo = get_package_share_directory('scout_mini_dual_lidar_gazebo')
+pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
+```
+Gets installation paths for required packages.
+
+### 2. Launch Arguments Declaration
+- `world`: Path to Gazebo world file (default: `simple_test_world.world`)
+- `model`: Path to robot URDF/XACRO file (default: `scout_mini.xacro`)
+- `use_sim_time`: Use simulation clock (default: `true`)
+- `verbose`: Enable detailed Gazebo output (default: `false`)
+
+### 3. Robot Description Generation
+```python
+robot_description_content = Command([
+    PathJoinSubstitution([FindExecutable(name='xacro')]),
+    ' ',
+    model,
+    ' mesh_prefix:=file://' + pkg_scout_description,
+])
+```
+Executes xacro to convert XACRO to URDF, passing `mesh_prefix` parameter with absolute file path for Gazebo compatibility.
+
+### 4. Robot State Publisher Node
+```python
+node_robot_state_publisher = Node(
+    package='robot_state_publisher',
+    executable='robot_state_publisher',
+    parameters=[robot_description, {'use_sim_time': use_sim_time}])
+```
+Publishes `/robot_description` topic and TF transforms based on URDF.
+
+### 5. Gazebo Launch
+```python
+gazebo = IncludeLaunchDescription(
+    PythonLaunchDescriptionSource(
+        os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')),
+    launch_arguments={'gz_args': world}.items())
+```
+Includes official Gazebo launch file, loads specified world.
+
+### 6. Spawn Entity Node
+```python
+spawn_entity = Node(
+    package='ros_gz_sim',
+    executable='create',
+    arguments=['-name', 'scout_mini', '-topic', 'robot_description',
+               '-x', '0.0', '-y', '0.0', '-z', '0.205'])
+```
+Reads robot model from `/robot_description` topic and spawns into Gazebo at position (0, 0, 0.205).
+
+### 7. Environment Variables
+```python
+SetEnvironmentVariable(
+    name='GZ_SIM_RESOURCE_PATH',
+    value=pkg_scout_description + '/meshes:' + pkg_scout_gazebo + '/worlds')
+```
+Sets Gazebo resource search paths for mesh files.
+
+## Startup Sequence
+```
+1. Declare launch arguments
+      ↓
+2. Set environment variables (GZ_SIM_RESOURCE_PATH)
+      ↓
+3. Launch Gazebo (load world file)
+      ↓
+4. Start robot_state_publisher (publish URDF + TF)
+      ↓
+5. Spawn robot entity in Gazebo
+```
+
+## Key Commands
+```bash
+# Build the package
+colcon build --packages-select scout_description scout_mini_dual_lidar_gazebo
+source install/setup.bash
+
+# Launch Scout Mini in Gazebo
+ros2 launch scout_mini_dual_lidar_gazebo scout_mini_gazebo.launch.py
+
+# Launch with verbose output
+ros2 launch scout_mini_dual_lidar_gazebo scout_mini_gazebo.launch.py verbose:=true
+
+# Verify topics
+ros2 topic list
+ros2 topic echo /robot_description --once
+ros2 run tf2_tools view_frames
+```
+
+## Verification Results
+- ✅ Gazebo launches successfully with simple test world
+- ✅ Scout Mini robot spawned in Gazebo with complete mesh model
+- ✅ Robot positioned correctly on ground (wheels touch surface)
+- ✅ TF tree published correctly (base_link, base_footprint, wheel links)
+- ✅ No mesh file errors in Gazebo console
+
+## Evidence
+- Gazebo screenshot showing Scout Mini model (`media/screenshots/task11_gazebo.png`)
+- TF tree image (`media/screenshots/task11_tf_tree.png`)
+- Terminal output logs (`media/LOG/task11.log`)
+
+## Committed Files
+- src/scout_mini_dual_lidar_gazebo/package.xml (new)
+- src/scout_mini_dual_lidar_gazebo/CMakeLists.txt (new)
+- src/scout_mini_dual_lidar_gazebo/launch/scout_mini_gazebo.launch.py (new)
+- worlds/simple_test_world.world (new)
+- scout_description/urdf/scout_mini.xacro (updated)
+- scout_description/urdf/scout_wheel_type1.xacro (updated)
+- scout_description/urdf/scout_wheel_type2.xacro (updated)
+- docker/Dockerfile (updated)
+- TASK_LOG.md (updated)
