@@ -16,12 +16,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	cmake \
 	nano \
 	git \
+	ros-humble-teleop-twist-keyboard \
 	python3-pip \
 	python3-colcon-common-extensions \
 	python3-rosdep \
 	ros-humble-rviz2 \
 	ros-humble-gazebo-ros-pkgs \
 	ros-humble-ros-gz-sim \
+	ros-humble-ros-gz-bridge \
 	ros-humble-xacro \
 	ros-humble-tf2-tools \
 	curl \

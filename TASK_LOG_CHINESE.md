@@ -403,3 +403,134 @@ ros2 run tf2_tools view_frames
 - scout_description/urdf/scout_wheel_type2.xacro（已更新）
 - docker/Dockerfile（已更新）
 - TASK_LOG.md（已更新）
+
+---
+
+## 任务12 — 远程操作 Scout Mini
+
+### 目标
+验证机器人可以通过键盘遥操作移动。
+
+### 问题描述
+teleop_twist_keyboard 可以发布 `/cmd_vel` 话题，但机器人无法移动。检查发现 `Subscription count: 0`，说明没有订阅者。后续发现 Gazebo DiffDrive 插件没有直接发布 `/odom` 话题，需要通过 TF 转换来获得里程计数据。
+
+### 根本原因
+1. **话题名称不匹配**：teleop_twist_keyboard 发布 `/cmd_vel`，Gazebo DiffDrive 插件订阅 `/model/scout_mini/cmd_vel`
+2. **Gazebo 插件不发布 odom 话题**：DiffDrive 插件通过 TF 发布里程计信息，而不是单独的 `/odom` 话题
+
+### 修复方案
+1. **URDF 配置**：Gazebo DiffDrive 插件直接订阅 `/cmd_vel`
+2. **ROS-Gazebo 桥接**：`cmd_vel_bridge` 将 ROS2 `/cmd_vel` 桥接到 Gazebo
+3. **TF 到里程计**：`tf_to_odom` 节点订阅 `/model/scout_mini/tf`，转换为标准的 `nav_msgs/Odometry` 发布到 `/odom`
+
+### 最终配置
+```
+teleop_twist_keyboard → /cmd_vel → cmd_vel_bridge → Gazebo DiffDrive → 机器人运动
+Gazebo TF → tf_bridge → /model/scout_mini/tf → tf_to_odom → /odom
+```
+
+### Launch 文件更新
+
+#### 添加的桥接节点
+```python
+# 桥接 /cmd_vel 从 ROS2 到 Gazebo
+cmd_vel_bridge = Node(
+    package='ros_gz_bridge',
+    executable='parameter_bridge',
+    arguments=['/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist'])
+
+# 桥接 /odom 从 Gazebo 到 ROS2
+odom_bridge = Node(
+    package='ros_gz_bridge',
+    executable='parameter_bridge',
+    arguments=['/odom[nav_msgs/msg/Odometry@ignition.msgs.Odometry'])
+```
+
+#### 桥接语法说明
+- `]` 表示 ROS2 → Gazebo 单向
+- `[` 表示 Gazebo → ROS2 单向
+- 原来的 `@` 符号用于双向桥接，这里只需要单向
+
+#### URDF 插件配置
+```xml
+<gazebo>
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+        <left_joint>rear_left_wheel</left_joint>
+        <right_joint>rear_right_wheel</right_joint>
+        <wheel_separation>0.52</wheel_separation>
+        <wheel_radius>0.145</wheel_radius>
+        <topic>/cmd_vel</topic>
+        <odometry_topic>/odom</odometry_topic>
+    </plugin>
+</gazebo>
+```
+
+### 控制话题详情
+- **话题名称**：`/cmd_vel`
+- **消息类型**：`geometry_msgs/msg/Twist`
+- **结构**：
+  ```
+  linear:
+    x: 前进/后退速度 (m/s)
+    y: 横向速度 (m/s)
+    z: 垂直速度 (m/s)
+  angular:
+    x: 滚转 (rad/s)
+    y: 俯仰 (rad/s)
+    z: 偏航/转向速度 (rad/s)
+  ```
+
+### 关键命令
+```bash
+# 重新构建包
+colcon build --packages-select scout_description scout_mini_dual_lidar_gazebo
+source install/setup.bash
+
+# 启动 Gazebo 仿真
+ros2 launch scout_mini_dual_lidar_gazebo scout_mini_gazebo.launch.py
+
+# 另一个终端：启动键盘遥操作
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+# 验证话题
+ros2 topic info /cmd_vel
+# 应该显示 Subscription count: 1
+
+ros2 topic echo /cmd_vel
+ros2 topic echo /odom
+```
+
+### 遥操作说明
+| 按键 | 动作 |
+|------|------|
+| `i` | 前进 |
+| `k` | 后退 |
+| `j` | 左转 |
+| `l` | 右转 |
+| `u` | 左前方移动 |
+| `o` | 右前方移动 |
+| `m` | 左后方移动 |
+| `,` | 右后方移动 |
+| `q` | 增加速度 10% |
+| `z` | 减少速度 10% |
+| `space` | 停止 |
+
+### 验证结果
+- ✅ `ros2 topic info /cmd_vel` 显示 Subscription count: 1
+- ✅ 机器人可以通过键盘遥操作在 Gazebo 中移动
+- ✅ `/odom` 话题正常发布里程计数据
+- ✅ 话题信息显示正确的发布者和订阅者
+- ✅ Twist 消息格式正确，包含 linear.x 和 angular.z 值
+
+### 证据
+- 终端输出显示 /cmd_vel 消息
+- 遥操作终端显示按键控制
+- 节点列表显示 cmd_vel_bridge 和 odom_bridge 正在运行
+
+### 提交的文件
+- src/scout_mini_dual_lidar_gazebo/launch/scout_mini_gazebo.launch.py（已更新）
+- src/scout_mini_dual_lidar_gazebo/src/tf_to_odom.py（新增）
+- src/scout_mini_dual_lidar_gazebo/CMakeLists.txt（已更新）
+- src/scout_mini_dual_lidar_gazebo/package.xml（已更新）
+- src/external/scout_ros2/scout_description/urdf/scout_mini.xacro（已更新）
+- TASK_LOG_CHINESE.md（已更新）

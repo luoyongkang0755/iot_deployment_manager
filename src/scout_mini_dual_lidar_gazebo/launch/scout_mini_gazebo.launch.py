@@ -61,7 +61,7 @@ def generate_launch_description():
         output='screen',
         parameters=[robot_description, {'use_sim_time': use_sim_time}])
 
-    # Gazebo launch
+    # Gazebo launch using Ignition Gazebo (ros_gz_sim)
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')),
@@ -70,7 +70,7 @@ def generate_launch_description():
         }.items(),
     )
 
-    # Spawn robot in Gazebo
+    # Spawn robot in Gazebo using ros_gz_sim
     # z = |wheel_vertical_offset| + wheel_radius = 0.060 + 0.145 = 0.205m for scout_mini
     spawn_entity = Node(
         package='ros_gz_sim',
@@ -82,6 +82,33 @@ def generate_launch_description():
             '-y', '0.0',
             '-z', '0.205',  # wheel_vertical_offset(0.060) + wheel_radius(0.145)
         ],
+        output='screen')
+
+    # ROS-Gazebo Bridge for /cmd_vel (ROS2 -> Gazebo)
+    cmd_vel_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='cmd_vel_bridge',
+        output='screen',
+        arguments=[
+            '/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist'
+        ])
+
+    # ROS-Gazebo Bridge for /tf (Gazebo -> ROS2)
+    tf_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='tf_bridge',
+        output='screen',
+        arguments=[
+            '/model/scout_mini/tf@tf2_msgs/msg/TFMessage@ignition.msgs.Pose_V'
+        ])
+
+    # TF to Odometry converter - provides /odom from Gazebo TF
+    tf_to_odom = Node(
+        package='scout_mini_dual_lidar_gazebo',
+        executable='tf_to_odom.py',
+        name='tf_to_odom',
         output='screen')
 
     # Set environment variables for Gazebo resource paths
@@ -115,5 +142,8 @@ def generate_launch_description():
     ld.add_action(gazebo)
     ld.add_action(node_robot_state_publisher)
     ld.add_action(spawn_entity)
+    ld.add_action(cmd_vel_bridge)
+    ld.add_action(tf_bridge)
+    ld.add_action(tf_to_odom)
 
     return ld

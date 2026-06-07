@@ -12,7 +12,6 @@ echo "Building Dokcer image: $IMAGE_NAME"
 docker build -t "$IMAGE_NAME" -f "$DOCKERFILE_PATH" .
 
 echo "Running container with GUI support.."
-
 docker run -it --rm \
     --name scout_nav2 \
     --net=host \

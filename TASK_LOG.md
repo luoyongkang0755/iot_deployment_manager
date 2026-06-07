@@ -403,3 +403,134 @@ ros2 run tf2_tools view_frames
 - scout_description/urdf/scout_wheel_type2.xacro (updated)
 - docker/Dockerfile (updated)
 - TASK_LOG.md (updated)
+
+---
+
+## Task 12 — Remote Control Scout Mini
+
+### Objective
+Verify that the robot can move using keyboard teleoperation.
+
+### Problem Description
+teleop_twist_keyboard can publish `/cmd_vel` topic, but the robot cannot move. Checking revealed `Subscription count: 0`, meaning there was no subscriber. Later discovered that Gazebo DiffDrive plugin does not publish `/odom` topic directly, and odometry data needs to be obtained via TF transformation.
+
+### Root Cause
+1. **Topic name mismatch**: teleop_twist_keyboard publishes `/cmd_vel`, Gazebo DiffDrive plugin subscribes to `/model/scout_mini/cmd_vel`
+2. **Gazebo plugin does not publish odom topic**: DiffDrive plugin publishes odometry information via TF instead of a separate `/odom` topic
+
+### Solution
+1. **URDF configuration**: Gazebo DiffDrive plugin directly subscribes to `/cmd_vel`
+2. **ROS-Gazebo bridge**: `cmd_vel_bridge` bridges ROS2 `/cmd_vel` to Gazebo
+3. **TF to odometry**: `tf_to_odom` node subscribes to `/model/scout_mini/tf` and converts to standard `nav_msgs/Odometry` published to `/odom`
+
+### Final Configuration
+```
+teleop_twist_keyboard → /cmd_vel → cmd_vel_bridge → Gazebo DiffDrive → Robot moves
+Gazebo TF → tf_bridge → /model/scout_mini/tf → tf_to_odom → /odom
+```
+
+### Launch File Updates
+
+#### Added Bridge Nodes
+```python
+# Bridge /cmd_vel from ROS2 to Gazebo
+cmd_vel_bridge = Node(
+    package='ros_gz_bridge',
+    executable='parameter_bridge',
+    arguments=['/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist'])
+
+# Bridge /odom from Gazebo to ROS2
+odom_bridge = Node(
+    package='ros_gz_bridge',
+    executable='parameter_bridge',
+    arguments=['/odom[nav_msgs/msg/Odometry@ignition.msgs.Odometry'])
+```
+
+#### Bridge Syntax Explanation
+- `]` indicates ROS2 → Gazebo one-way
+- `[` indicates Gazebo → ROS2 one-way
+- Original `@` symbol was for bidirectional bridging, but we only need one-way here
+
+#### URDF Plugin Configuration
+```xml
+<gazebo>
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+        <left_joint>rear_left_wheel</left_joint>
+        <right_joint>rear_right_wheel</right_joint>
+        <wheel_separation>0.52</wheel_separation>
+        <wheel_radius>0.145</wheel_radius>
+        <topic>/cmd_vel</topic>
+        <odometry_topic>/odom</odometry_topic>
+    </plugin>
+</gazebo>
+```
+
+### Control Topic Details
+- **Topic Name**: `/cmd_vel`
+- **Message Type**: `geometry_msgs/msg/Twist`
+- **Structure**:
+  ```
+  linear:
+    x: forward/backward speed (m/s)
+    y: lateral speed (m/s)
+    z: vertical speed (m/s)
+  angular:
+    x: roll (rad/s)
+    y: pitch (rad/s)
+    z: yaw/turn speed (rad/s)
+  ```
+
+### Key Commands
+```bash
+# Rebuild the package
+colcon build --packages-select scout_description scout_mini_dual_lidar_gazebo
+source install/setup.bash
+
+# Launch Gazebo simulation
+ros2 launch scout_mini_dual_lidar_gazebo scout_mini_gazebo.launch.py
+
+# In another terminal: Start keyboard teleoperation
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+# Verify topics
+ros2 topic info /cmd_vel
+# Should show Subscription count: 1
+
+ros2 topic echo /cmd_vel
+ros2 topic echo /odom
+```
+
+### Teleoperation Instructions
+| Key | Action |
+|-----|--------|
+| `i` | Move forward |
+| `k` | Move backward |
+| `j` | Turn left |
+| `l` | Turn right |
+| `u` | Move forward-left |
+| `o` | Move forward-right |
+| `m` | Move backward-left |
+| `,` | Move backward-right |
+| `q` | Increase speed by 10% |
+| `z` | Decrease speed by 10% |
+| `space` | Stop |
+
+### Verification Results
+- ✅ `ros2 topic info /cmd_vel` shows Subscription count: 1
+- ✅ Robot can move using keyboard teleoperation in Gazebo
+- ✅ `/odom` topic publishes odometry data normally
+- ✅ Topic info shows correct publishers and subscribers
+- ✅ Twist messages are correctly formatted with linear.x and angular.z values
+
+### Evidence
+- Terminal output showing /cmd_vel messages
+- Teleop terminal showing key controls
+- Node list showing cmd_vel_bridge and odom_bridge are running
+
+### Committed Files
+- src/scout_mini_dual_lidar_gazebo/launch/scout_mini_gazebo.launch.py (updated)
+- src/scout_mini_dual_lidar_gazebo/src/tf_to_odom.py (added)
+- src/scout_mini_dual_lidar_gazebo/CMakeLists.txt (updated)
+- src/scout_mini_dual_lidar_gazebo/package.xml (updated)
+- src/external/scout_ros2/scout_description/urdf/scout_mini.xacro (updated)
+- TASK_LOG.md (updated)

@@ -9,9 +9,19 @@ find_package(ament_cmake REQUIRED)
 find_package(scout_description REQUIRED)
 find_package(ros_gz_sim REQUIRED)
 find_package(robot_state_publisher REQUIRED)
+find_package(rclpy REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(tf2_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 
 install(DIRECTORY launch worlds
   DESTINATION share/${PROJECT_NAME}/
+)
+
+install(PROGRAMS
+  src/scout_diff_drive_controller.py
+  src/tf_to_odom.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()

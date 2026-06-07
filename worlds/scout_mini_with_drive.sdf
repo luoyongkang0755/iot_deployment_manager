@@ -1,0 +1,18 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <model name="scout_mini">
+    <pose>0 0 0.205 0 0 0</pose>
+    <include>
+      <uri>file:///ws/install/scout_description/share/scout_description/urdf/scout_mini.xacro</uri>
+    </include>
+
+    <!-- DiffDrive plugin for Ignition Gazebo -->
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>rear_left_wheel</left_joint>
+      <right_joint>rear_right_wheel</right_joint>
+      <wheel_separation>0.52</wheel_separation>
+      <wheel_radius>0.145</wheel_radius>
+      <topic>/model/scout_mini/cmd_vel</topic>
+    </plugin>
+  </model>
+</sdf>
