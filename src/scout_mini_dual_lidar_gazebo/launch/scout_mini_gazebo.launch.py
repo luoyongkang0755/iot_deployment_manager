@@ -54,12 +54,23 @@ def generate_launch_description():
 
     robot_description = {'robot_description': robot_description_content}
 
-    # Robot State Publisher
+    # Robot State Publisher - publishes static TFs from URDF
     node_robot_state_publisher = Node(
         package='robot_state_publisher',
         executable='robot_state_publisher',
         output='screen',
         parameters=[robot_description, {'use_sim_time': use_sim_time}])
+
+    # Joint State Publisher - publishes all joint states at zero position
+    node_joint_state_publisher = Node(
+        package='joint_state_publisher',
+        executable='joint_state_publisher',
+        name='joint_state_publisher',
+        output='screen',
+        parameters=[
+            {'use_sim_time': use_sim_time},
+            robot_description
+        ])
 
     # Gazebo launch using Ignition Gazebo (ros_gz_sim)
     gazebo = IncludeLaunchDescription(
@@ -104,11 +115,40 @@ def generate_launch_description():
             '/model/scout_mini/tf@tf2_msgs/msg/TFMessage@ignition.msgs.Pose_V'
         ])
 
+    # ROS-Gazebo Bridge for Front LiDAR scan (Gazebo -> ROS2)
+    front_lidar_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='front_lidar_bridge',
+        output='screen',
+        arguments=[
+            '/front/scan@sensor_msgs/msg/LaserScan@ignition.msgs.LaserScan'
+        ])
+
+    # ROS-Gazebo Bridge for Rear LiDAR scan (Gazebo -> ROS2)
+    rear_lidar_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='rear_lidar_bridge',
+        output='screen',
+        arguments=[
+            '/rear/scan@sensor_msgs/msg/LaserScan@ignition.msgs.LaserScan'
+        ])
+
     # TF to Odometry converter - provides /odom from Gazebo TF
     tf_to_odom = Node(
         package='scout_mini_dual_lidar_gazebo',
         executable='tf_to_odom.py',
         name='tf_to_odom',
+        output='screen')
+
+    # RViz2 for visualization
+    rviz_config = os.path.join(get_package_share_directory('scout_mini_dual_lidar_gazebo'), 'config', 'scout_mini.rviz')
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', rviz_config],
         output='screen')
 
     # Set environment variables for Gazebo resource paths
@@ -141,9 +181,13 @@ def generate_launch_description():
     # Add the nodes to the launch description
     ld.add_action(gazebo)
     ld.add_action(node_robot_state_publisher)
+    ld.add_action(node_joint_state_publisher)
     ld.add_action(spawn_entity)
     ld.add_action(cmd_vel_bridge)
     ld.add_action(tf_bridge)
+    ld.add_action(front_lidar_bridge)
+    ld.add_action(rear_lidar_bridge)
     ld.add_action(tf_to_odom)
+    ld.add_action(rviz_node)
 
     return ld

@@ -423,10 +423,65 @@ teleop_twist_keyboard can publish `/cmd_vel` topic, but the robot cannot move. C
 2. **ROS-Gazebo bridge**: `cmd_vel_bridge` bridges ROS2 `/cmd_vel` to Gazebo
 3. **TF to odometry**: `tf_to_odom` node subscribes to `/model/scout_mini/tf` and converts to standard `nav_msgs/Odometry` published to `/odom`
 
-### Final Configuration
+## Task 13 - Add Front RS-AIRY LiDAR
+
+### Objective
+Add and verify front LiDAR simulation.
+
+### Required Transformation
+- x = 0.5, y = 0.0, z = 0.25, roll=0, pitch=0, yaw=0
+
+### Modified Files
+- `scout_mini.xacro` - Add front_lidar_link and Gazebo ray sensor plugin
+
+### Topics
+- `/front/scan` - Front LiDAR scan data
+
+### Coordinate Frame
+- `front_lidar_link`
+
+### Verification Results
+- ✅ `/front/scan` topic publishing correctly
+- ✅ TF transform base_link → front_lidar_link working
+
+### Key Commands
+```bash
+ros2 topic list | grep scan    # Check scan topics
+ros2 topic echo /front/scan --once    # View single scan data
+ros2 topic hz /front/scan    # Check scan frequency
+ros2 run tf2_ros tf2_echo base_link front_lidar_link    # Check TF transform
 ```
-teleop_twist_keyboard → /cmd_vel → cmd_vel_bridge → Gazebo DiffDrive → Robot moves
-Gazebo TF → tf_bridge → /model/scout_mini/tf → tf_to_odom → /odom
+
+---
+
+## Task 14 - Add Rear RS-AIRY LiDAR
+
+### Objective
+Complete dual LiDAR simulation setup.
+
+### Required Transformation
+- x = -0.5, y = 0.0, z = 0.25, roll=0, pitch=0, yaw = 3.1416 (π rad)
+
+### Modified Files
+- `scout_mini.xacro` - Add rear_lidar_link and Gazebo ray sensor plugin
+- `scout_mini_gazebo.launch.py` - Add ros_gz_bridge nodes
+
+### Topics
+- `/rear/scan` - Rear LiDAR scan data
+
+### Coordinate Frame
+- `rear_lidar_link`
+
+### Verification Results
+- ✅ `/rear/scan` topic publishing correctly
+- ✅ TF transform base_link → rear_lidar_link working
+
+### Key Commands
+```bash
+ros2 topic echo /rear/scan --once    # View single scan data
+ros2 topic hz /rear/scan    # Check scan frequency
+ros2 run tf2_ros tf2_echo base_link rear_lidar_link    # Check TF transform
+ros2 run tf2_tools view_frames    # View TF tree
 ```
 
 ### Launch File Updates

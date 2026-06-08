@@ -423,10 +423,65 @@ teleop_twist_keyboard 可以发布 `/cmd_vel` 话题，但机器人无法移动�
 2. **ROS-Gazebo 桥接**：`cmd_vel_bridge` 将 ROS2 `/cmd_vel` 桥接到 Gazebo
 3. **TF 到里程计**：`tf_to_odom` 节点订阅 `/model/scout_mini/tf`，转换为标准的 `nav_msgs/Odometry` 发布到 `/odom`
 
-### 最终配置
+## Task 13 - 添加前置 RS-AIRY LiDAR
+
+### 目标
+添加并验证前置 LiDAR 仿真。
+
+### 所需变换
+- x = 0.5, y = 0.0, z = 0.25, roll=0, pitch=0, yaw=0
+
+### 修改的文件
+- `scout_mini.xacro` - 添加 front_lidar_link 和 Gazebo 射线传感器插件
+
+### 话题
+- `/front/scan` - 前置 LiDAR 扫描数据
+
+### 坐标系
+- `front_lidar_link`
+
+### 验证结果
+- ✅ `/front/scan` 话题正常发布
+- ✅ TF 变换 base_link → front_lidar_link 正常
+
+### 关键命令
+```bash
+ros2 topic list | grep scan    # 查看扫描话题
+ros2 topic echo /front/scan --once    # 查看单次扫描数据
+ros2 topic hz /front/scan    # 查看扫描频率
+ros2 run tf2_ros tf2_echo base_link front_lidar_link    # 查看TF变换
 ```
-teleop_twist_keyboard → /cmd_vel → cmd_vel_bridge → Gazebo DiffDrive → 机器人运动
-Gazebo TF → tf_bridge → /model/scout_mini/tf → tf_to_odom → /odom
+
+---
+
+## Task 14 - 添加后置 RS-AIRY LiDAR
+
+### 目标
+完成双 LiDAR 仿真设置。
+
+### 所需变换
+- x = -0.5, y = 0.0, z = 0.25, roll=0, pitch=0, yaw = 3.1416 (π rad)
+
+### 修改的文件
+- `scout_mini.xacro` - 添加 rear_lidar_link 和 Gazebo 射线传感器插件
+- `scout_mini_gazebo.launch.py` - 添加 ros_gz_bridge 桥接节点
+
+### 话题
+- `/rear/scan` - 后置 LiDAR 扫描数据
+
+### 坐标系
+- `rear_lidar_link`
+
+### 验证结果
+- ✅ `/rear/scan` 话题正常发布
+- ✅ TF 变换 base_link → rear_lidar_link 正常
+
+### 关键命令
+```bash
+ros2 topic echo /rear/scan --once    # 查看单次扫描数据
+ros2 topic hz /rear/scan    # 查看扫描频率
+ros2 run tf2_ros tf2_echo base_link rear_lidar_link    # 查看TF变换
+ros2 run tf2_tools view_frames    # 查看TF树
 ```
 
 ### Launch 文件更新
