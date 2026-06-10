@@ -589,3 +589,208 @@ ros2 topic echo /odom
 - src/scout_mini_dual_lidar_gazebo/package.xml（已更新）
 - src/external/scout_ros2/scout_description/urdf/scout_mini.xacro（已更新）
 - TASK_LOG_CHINESE.md（已更新）
+
+---
+
+## 任务15 — 双 LiDAR 验证报告
+
+### 目标
+证明两个 LiDAR 传感器都能正常工作。
+
+### 前置 LiDAR 验证
+
+#### 话题信息
+| 项目 | 值 |
+|------|-----|
+| **话题名称** | `/front/scan` |
+| **消息类型** | `sensor_msgs/msg/LaserScan` |
+
+#### 坐标系信息
+| 项目 | 值 |
+|------|-----|
+| **传感器坐标系** | `scout_mini/base_link/front_lidar_sensor` |
+| **父坐标系** | `front_lidar_link` |
+| **位置 (xyz)** | `0.245, 0, 0.14` |
+
+### 后置 LiDAR 验证
+
+#### 话题信息
+| 项目 | 值 |
+|------|-----|
+| **话题名称** | `/rear/scan` |
+| **消息类型** | `sensor_msgs/msg/LaserScan` |
+
+#### 坐标系信息
+| 项目 | 值 |
+|------|-----|
+| **传感器坐标系** | `scout_mini/base_link/rear_lidar_sensor` |
+| **父坐标系** | `rear_lidar_link` |
+| **位置 (xyz)** | `-0.245, 0, 0.14` |
+
+### 数据频率验证
+
+```bash
+# 前置 LiDAR 频率
+$ ros2 topic hz /front/scan
+average rate: 9.894
+	min: 0.096s max: 0.104s std dev: 0.00230s window: 11
+
+# 后置 LiDAR 频率
+$ ros2 topic hz /rear/scan
+average rate: 9.876
+	min: 0.096s max: 0.105s std dev: 0.00197s window: 21
+```
+
+### 问题根因
+1. **Frame ID 不匹配**：Gazebo 自动为传感器添加模型名称前缀 (`scout_mini/base_link/front_lidar_sensor`)，而 URDF 定义的是 `front_lidar_link`
+2. **TF 链断裂**：没有从 `front_lidar_link` 到 `scout_mini/base_link/front_lidar_sensor` 的变换
+
+### 解决方案
+在 launch 文件中添加静态 TF 变换：
+
+```python
+# 前置 LiDAR 静态 TF
+front_lidar_static_tf = Node(
+    package='tf2_ros',
+    executable='static_transform_publisher',
+    arguments=['0.245', '0', '0.14', '0', '0', '0',
+               'front_lidar_link', 'scout_mini/base_link/front_lidar_sensor'])
+
+# 后置 LiDAR 静态 TF
+rear_lidar_static_tf = Node(
+    package='tf2_ros',
+    executable='static_transform_publisher',
+    arguments=['-0.245', '0', '0.14', '0', '0', '0',
+               'rear_lidar_link', 'scout_mini/base_link/rear_lidar_sensor'])
+```
+
+### 验证结果
+- ✅ 前置 LiDAR 在 `/front/scan` 发布有效数据
+- ✅ 后置 LiDAR 在 `/rear/scan` 发布有效数据
+- ✅ 两个坐标系都连接到 `base_link`
+- ✅ RViz2 可以正确可视化两个扫描
+- ✅ 数据频率稳定在约 10Hz
+
+### 提交的文件
+- reports/dual_lidar_validation.md（新增）
+- src/scout_mini_dual_lidar_gazebo/launch/scout_mini_gazebo.launch.py（已更新）
+- TASK_LOG_CHINESE.md（已更新）
+
+---
+
+## 任务16 — 创建导航世界
+
+### 目标
+为 Nav2 测试构建一个可控的 Gazebo 世界。
+
+### 世界设计
+
+#### 边界墙壁（16m x 16m区域）
+- **北墙**: 位置 (0, 8.0, 0.75), 尺寸 (16.0 x 0.3 x 1.5)
+- **南墙**: 位置 (0, -8.0, 0.75), 尺寸 (16.0 x 0.3 x 1.5)
+- **东墙**: 位置 (8.0, 0, 0.75), 尺寸 (0.3 x 16.0 x 1.5)
+- **西墙**: 位置 (-8.0, 0, 0.75), 尺寸 (0.3 x 16.0 x 1.5)
+
+#### 障碍物（6个彩色箱子）
+| 障碍物 | 位置 | 尺寸 | 颜色 |
+|--------|------|------|------|
+| obstacle_box_1 | (4.0, 0.0, 0.5) | 1.0x1.0x1.0 | 红色 |
+| obstacle_box_2 | (0.0, 4.0, 0.3) | 0.8x0.8x0.6 | 绿色 |
+| obstacle_box_3 | (0.0, -4.0, 0.4) | 1.2x0.6x0.8 | 蓝色 |
+| obstacle_box_4 | (-4.0, 0.0, 0.6) | 0.8x1.5x1.2 | 黄色 |
+| obstacle_box_5 | (3.0, 3.0, 0.4) | 0.7x0.7x0.8 | 紫色 |
+| obstacle_box_6 | (-3.0, -3.0, 0.5) | 0.9x0.9x1.0 | 橙色 |
+
+#### 导航标记点
+- **waypoint_1 (绿色)**: 位置 (5.0, 5.0, 0.05)
+- **waypoint_2 (蓝色)**: 位置 (-5.0, -5.0, 0.05)
+
+### 障碍物放置策略
+1. **中央导航空间**: 机器人从原点(0,0)启动，四周有4m的活动空间
+2. **避障训练**: 障碍物放置在不同距离，测试避障功能
+3. **路径规划**: 障碍物之间有多条路径可选
+
+### 导航空间计算
+- 总面积: 256 m²
+- 可用导航空间: ~200 m²
+
+### 验证结果
+- ✅ 世界在 Gazebo 中成功启动
+- ✅ 所有4面边界墙壁可见
+- ✅ 所有6个障碍物可见且位置正确
+- ✅ Scout Mini 有足够的导航空间
+
+### 提交的文件
+- src/scout_mini_dual_lidar_gazebo/worlds/simple_test_world.world（已更新）
+- TASK_LOG_CHINESE.md（已更新）
+
+---
+
+## 任务17 — 准备 Nav2 地图
+
+### 目标
+为 Nav2 导航准备地图。
+
+### 方案选择
+**选项 B - SLAM 工具箱**
+
+### 创建的文件
+
+#### 1. SLAM 配置
+- `src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml` - SLAM Toolbox 参数
+
+#### 2. 启动文件
+- `src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py` - SLAM 建图启动文件
+
+#### 3. 地图文件
+- `maps/nav2_test_map.yaml` - 地图元数据配置
+- `maps/nav2_test_map.pgm` - 地图图像文件
+
+#### 4. 文档
+- `README_SMAP.md` - SLAM 建图使用说明
+
+### 关键配置
+
+**SLAM 参数:**
+- Map frame: `map`
+- Base frame: `base_link`
+- Scan topic: `/front/scan`
+- 地图分辨率: 0.05 m/pixel
+- 最大激光距离: 25.0 m
+
+### 使用命令
+
+```bash
+# 启动 SLAM 建图
+ros2 launch scout_mini_dual_lidar_gazebo slam.launch.py
+
+# 键盘控制机器人移动
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+# 保存地图
+ros2 run nav2_map_server map_saver_cli -f maps/nav2_test_map
+
+# 检查 map 话题
+ros2 topic list | grep map
+```
+
+### 添加的依赖
+- `slam_toolbox` - SLAM 建图工具
+- `nav2_map_server` - 地图服务器
+
+### 验证结果
+- ✅ SLAM Toolbox 配置已创建
+- ✅ SLAM 建图启动文件已创建
+- ✅ 地图文件已创建 (yaml + pgm)
+- ✅ README 文档已创建
+- ✅ 包依赖已更新
+
+### 提交的文件
+- src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml（新增）
+- src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py（新增）
+- src/scout_mini_dual_lidar_gazebo/package.xml（已更新）
+- src/scout_mini_dual_lidar_gazebo/CMakeLists.txt（已更新）
+- maps/nav2_test_map.yaml（新增）
+- maps/nav2_test_map.pgm（新增）
+- README_SMAP.md（新增）
+- TASK_LOG_CHINESE.md（已更新）
