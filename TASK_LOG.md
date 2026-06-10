@@ -799,3 +799,108 @@ ros2 topic list | grep map
 - maps/nav2_test_map.pgm (new)
 - README_SMAP.md (new)
 - TASK_LOG.md (updated)
+
+---
+
+## Task 18 — Navigation Coordinate Frames Explanation
+
+### Objective
+Ensure understanding of the Nav2 coordinate frame chain and the differences between key frames.
+
+### Created Report
+- `reports/navigation_frames.md` - Comprehensive explanation of navigation coordinate frames
+
+### Coordinate Frame Chain
+
+```
+map → odom → base_link → [front_lidar_link, rear_lidar_link]
+```
+
+### Key Frames Explained
+
+#### 1. map Frame (World Frame)
+- **Definition**: Global fixed world coordinate system
+- **Origin**: Typically aligned with map origin or robot's initial position
+- **Characteristics**: 
+  - Fixed (doesn't move)
+  - Allows drift over time
+  - Used for long-term navigation
+- **Usage**: Global path planning, map localization
+
+#### 2. odom Frame (Odometry Frame)
+- **Definition**: Local coordinate system starting at robot's initial position
+- **Characteristics**:
+  - Relative to robot's starting point
+  - Short-term accurate (cm-level)
+  - Long-term drift (accumulates error)
+  - Continuous but may drift
+- **Usage**: Local path tracking, short-term obstacle avoidance
+
+#### 3. base_link Frame (Robot Body Frame)
+- **Definition**: Coordinate system fixed to the robot body
+- **Location**: Typically at robot's geometric center or rotation center
+- **Characteristics**:
+  - Moves with the robot
+  - Reference frame for all sensors and actuators
+- **Usage**: Sensor data fusion, motion control
+
+#### 4. LiDAR Frames
+- **front_lidar_link**: Front LiDAR sensor at (x=0.245, y=0, z=0.14) relative to base_link
+- **rear_lidar_link**: Rear LiDAR sensor at (x=-0.245, y=0, z=0.14) relative to base_link
+- **Characteristics**: Fixed transform from base_link (from URDF)
+
+### Key Differences
+
+#### map vs odom
+
+| Characteristic | map | odom |
+|----------------|-----|------|
+| **Origin** | Fixed world point | Robot start position |
+| **Stability** | Globally fixed | Moves with robot |
+| **Accuracy** | Long-term accurate | Short-term precise, long-term drift |
+| **Continuity** | May jump | Continuous smooth |
+| **Usage** | Global planning | Local control |
+| **Transform** | Computed by AMCL/SLAM | From odometry |
+
+#### base_link vs LiDAR Frames
+
+| Characteristic | base_link | LiDAR frames |
+|----------------|-----------|--------------|
+| **Definition** | Robot body | Sensor mounting position |
+| **Movement** | Moves with robot | Moves with robot |
+| **Transform** | Reference frame | Fixed relative to base_link |
+| **Data** | Robot state | Laser scan data |
+
+### TF Tree Verification
+
+**Command:**
+```bash
+ros2 run tf2_tools view_frames
+```
+
+**Generated file:** `media/screenshots/task18_tf_tree.pdf`
+
+**Transform Checks:**
+```bash
+# Check map → base_link transform
+ros2 run tf2_ros tf2_echo map base_link
+
+# Check odom → base_link transform
+ros2 run tf2_ros tf2_echo odom base_link
+
+# Check base_link → front_lidar_link transform
+ros2 run tf2_ros tf2_echo base_link front_lidar_link
+```
+
+### Verification Results
+- ✅ No disconnected coordinate frames
+- ✅ All frames properly connected to TF tree
+- ✅ Difference between map and odom clearly explained
+- ✅ Relationship between base_link and LiDAR frames explained
+- ✅ TF tree image generated
+
+### Committed Files
+- `reports/navigation_frames.md` (new)
+- `media/screenshots/task18_tf_tree.pdf` (new)
+- `TASK_LOG.md` (updated)
+- `TASK_LOG_CHINESE.md` (updated)
