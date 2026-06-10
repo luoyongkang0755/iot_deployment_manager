@@ -745,7 +745,7 @@ Prepare a map for Nav2 navigation using SLAM Toolbox.
 
 #### 4. Map Files
 - `maps/nav2_test_map.yaml` - 地图元数据配置
-- `maps/nav2_test_map.pgm` - 地图图像文件
+
 
 ### Key Configuration
 
@@ -783,12 +783,6 @@ ros2 topic list | grep map
 - `slam_toolbox` - SLAM建图工具
 - `nav2_map_server` - 地图服务器
 
-### Verification Results
-- ✅ SLAM Toolbox configuration created
-- ✅ Launch file for SLAM建图 created
-- ✅ Map files created (yaml + pgm)
-- ✅ README documentation created
-- ✅ Package dependencies updated
 
 ### Committed Files
 - src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml (new)
@@ -796,9 +790,8 @@ ros2 topic list | grep map
 - src/scout_mini_dual_lidar_gazebo/package.xml (updated)
 - src/scout_mini_dual_lidar_gazebo/CMakeLists.txt (updated)
 - maps/nav2_test_map.yaml (new)
-- maps/nav2_test_map.pgm (new)
 - README_SMAP.md (new)
-- TASK_LOG.md (updated)
+
 
 ---
 
