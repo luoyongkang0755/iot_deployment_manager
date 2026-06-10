@@ -116,11 +116,14 @@ def generate_launch_description():
         ])
 
     # ROS-Gazebo Bridge for Front LiDAR scan (Gazebo -> ROS2)
+    # 使用sensor_data QoS配置文件，匹配Gazebo传感器数据的BestEffort策略
+    # 注意：Gazebo会自动添加模型名称前缀到frame_id，需要在RViz中设置Fixed Frame为 scout_mini/base_link/front_lidar_sensor
     front_lidar_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
         name='front_lidar_bridge',
         output='screen',
+        parameters=[{'qos_sensor_data': True}],
         arguments=[
             '/front/scan@sensor_msgs/msg/LaserScan@ignition.msgs.LaserScan'
         ])
@@ -131,9 +134,41 @@ def generate_launch_description():
         executable='parameter_bridge',
         name='rear_lidar_bridge',
         output='screen',
+        parameters=[{'qos_sensor_data': True}],
         arguments=[
             '/rear/scan@sensor_msgs/msg/LaserScan@ignition.msgs.LaserScan'
         ])
+
+    # Static TF publisher - maps Gazebo sensor frame to URDF frame
+    # Gazebo automatically adds model name prefix to sensor frame_id
+    # Laser data is in frame: scout_mini/base_link/front_lidar_sensor
+    # URDF frame is: front_lidar_link
+    # Transform from sensor frame to URDF frame
+    front_lidar_static_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='front_lidar_static_tf',
+        arguments=[
+            '0.245', '0', '0.14',  # xyz (position of sensor relative to base_link)
+            '0', '0', '0',         # rpy
+            'front_lidar_link',                    # parent frame (URDF frame)
+            'scout_mini/base_link/front_lidar_sensor'  # child frame (Gazebo frame)
+        ]
+    )
+
+    # Static TF publisher for rear lidar
+    # Transform from rear sensor frame to URDF frame
+    rear_lidar_static_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='rear_lidar_static_tf',
+        arguments=[
+            '-0.245', '0', '0.14',  # xyz (position of sensor relative to base_link)
+            '0', '0', '0',          # rpy
+            'rear_lidar_link',                     # parent frame (URDF frame)
+            'scout_mini/base_link/rear_lidar_sensor'  # child frame (Gazebo frame)
+        ]
+    )
 
     # TF to Odometry converter - provides /odom from Gazebo TF
     tf_to_odom = Node(
@@ -152,8 +187,11 @@ def generate_launch_description():
         output='screen')
 
     # Set environment variables for Gazebo resource paths
-    # Need to include scout_description's meshes directory for DAE files
-    gz_resource_path = pkg_scout_description + '/meshes:' + pkg_scout_gazebo + '/worlds'
+    # Gazebo uses model:// URI which looks for model_name/meshes/... in resource paths
+    # So we need to point to the parent directory containing scout_description folder
+    scout_description_parent = os.path.dirname(pkg_scout_description)
+    gz_resource_path = scout_description_parent + ':' + pkg_scout_gazebo + '/worlds'
+
     set_env_vars = [
         SetEnvironmentVariable(
             name='GZ_SIM_RESOURCE_PATH',
@@ -163,20 +201,24 @@ def generate_launch_description():
             name='IGN_GAZEBO_RESOURCE_PATH',
             value=gz_resource_path
         ),
+        SetEnvironmentVariable(
+            name='GAZEBO_MODEL_PATH',
+            value=scout_description_parent
+        ),
     ]
 
     # Create the launch description and populate
     ld = LaunchDescription()
+
+    # Add environment variables FIRST - MUST be set BEFORE Gazebo starts
+    for env_var in set_env_vars:
+        ld.add_action(env_var)
 
     # Declare the launch options
     ld.add_action(declare_world_cmd)
     ld.add_action(declare_model_cmd)
     ld.add_action(declare_use_sim_time_cmd)
     ld.add_action(declare_verbose_cmd)
-
-    # Add environment variables
-    for env_var in set_env_vars:
-        ld.add_action(env_var)
 
     # Add the nodes to the launch description
     ld.add_action(gazebo)
@@ -187,6 +229,8 @@ def generate_launch_description():
     ld.add_action(tf_bridge)
     ld.add_action(front_lidar_bridge)
     ld.add_action(rear_lidar_bridge)
+    ld.add_action(front_lidar_static_tf)
+    ld.add_action(rear_lidar_static_tf)
     ld.add_action(tf_to_odom)
     ld.add_action(rviz_node)
 

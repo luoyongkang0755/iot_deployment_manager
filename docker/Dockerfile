@@ -26,11 +26,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	ros-humble-ros-gz-bridge \
 	ros-humble-xacro \
 	ros-humble-tf2-tools \
+	ros-humble-tf2-ros \
+	ros-humble-tf2-msgs \
+	ros-humble-tf2-sensor-msgs \
 	curl \
 	wget \
 	lsb-release \
 	gnupg2 \
 	libasio-dev \
+	# Nav2导航框架核心包 \
+	ros-humble-nav2-bringup \
+	ros-humble-nav2-core \
+	ros-humble-nav2-common \
+	ros-humble-nav2-planner \
+	ros-humble-nav2-controller \
+	ros-humble-nav2-costmap-2d \
+	ros-humble-nav2-amcl \
+	ros-humble-nav2-map-server \
+	ros-humble-nav2-lifecycle-manager \
+	ros-humble-nav2-rviz-plugins \
+	ros-humble-nav2-smoother \
+	ros-humble-nav2-behavior-tree \
+	ros-humble-nav2-velocity-smoother \
+	# SLAM建图包 \
+	ros-humble-slam-toolbox \
+	ros-humble-cartographer \
+	ros-humble-cartographer-ros \
 	&& rm -rf /var/lib/apt/lists/*
 
 # 配置 rosdep 使用清华大学镜像源（解决 raw.githubusercontent.com 超时问题）

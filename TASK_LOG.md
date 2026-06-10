@@ -589,3 +589,79 @@ ros2 topic echo /odom
 - src/scout_mini_dual_lidar_gazebo/package.xml (updated)
 - src/external/scout_ros2/scout_description/urdf/scout_mini.xacro (updated)
 - TASK_LOG.md (updated)
+
+---
+
+## Task 15 — Dual LiDAR Validation
+
+### Objective
+Verify that both LiDAR sensors are working correctly and can be visualized in RViz2.
+
+### Verification Items
+
+#### 1. Front LiDAR
+- **Topic Name**: `/front/scan`
+- **Message Type**: `sensor_msgs/msg/LaserScan`
+- **Frame ID**: `scout_mini/base_link/front_lidar_sensor`
+- **TF Chain**: `base_link` → `front_lidar_link` → `scout_mini/base_link/front_lidar_sensor`
+- **Position**: x=0.245, y=0, z=0.14
+
+#### 2. Rear LiDAR
+- **Topic Name**: `/rear/scan`
+- **Message Type**: `sensor_msgs/msg/LaserScan`
+- **Frame ID**: `scout_mini/base_link/rear_lidar_sensor`
+- **TF Chain**: `base_link` → `rear_lidar_link` → `scout_mini/base_link/rear_lidar_sensor`
+- **Position**: x=-0.245, y=0, z=0.14
+
+#### 3. Frequency Verification
+```bash
+# Front LiDAR
+$ ros2 topic hz /front/scan
+average rate: 9.894
+	min: 0.096s max: 0.104s std dev: 0.00230s window: 11
+
+# Rear LiDAR  
+$ ros2 topic hz /rear/scan
+average rate: 9.876
+	min: 0.096s max: 0.105s std dev: 0.00197s window: 21
+```
+
+#### 4. RViz2 Visualization
+- **Fixed Frame**: `base_link`
+- **Display Type**: LaserScan
+- **Topics**: `/front/scan` and `/rear/scan`
+- **Screenshot**: `media/screenshots/task15.png`
+
+### Root Cause of Previous Issues
+1. **Frame ID mismatch**: Gazebo automatically adds model name prefix (`scout_mini/base_link/front_lidar_sensor`) while URDF defines `front_lidar_link`
+2. **TF chain broken**: No transformation from `front_lidar_link` to `scout_mini/base_link/front_lidar_sensor`
+
+### Solution
+Added static TF transformations in launch file:
+```python
+# Front LiDAR static TF
+front_lidar_static_tf = Node(
+    package='tf2_ros',
+    executable='static_transform_publisher',
+    arguments=['0.245', '0', '0.14', '0', '0', '0',
+               'front_lidar_link', 'scout_mini/base_link/front_lidar_sensor'])
+
+# Rear LiDAR static TF
+rear_lidar_static_tf = Node(
+    package='tf2_ros',
+    executable='static_transform_publisher',
+    arguments=['-0.245', '0', '0.14', '0', '0', '0',
+               'rear_lidar_link', 'scout_mini/base_link/rear_lidar_sensor'])
+```
+
+### Verification Results
+- ✅ Front LiDAR publishes valid data on `/front/scan`
+- ✅ Rear LiDAR publishes valid data on `/rear/scan`
+- ✅ Both coordinate frames connected to `base_link`
+- ✅ RViz2 can visualize both scans correctly
+- ✅ Data frequency stable at ~10Hz
+
+### Committed Files
+- reports/dual_lidar_validation.md (new)
+- src/scout_mini_dual_lidar_gazebo/launch/scout_mini_gazebo.launch.py (updated)
+- TASK_LOG.md (updated)
