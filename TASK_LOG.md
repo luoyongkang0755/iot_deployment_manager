@@ -718,3 +718,84 @@ Create a controlled Gazebo world for Nav2 testing with walls, obstacles, and suf
 ### Committed Files
 - src/scout_mini_dual_lidar_gazebo/worlds/simple_test_world.world (updated)
 - TASK_LOG.md (updated)
+
+---
+
+## Task 17 — Map Preparation for Nav2
+
+### Objective
+Prepare a map for Nav2 navigation using SLAM Toolbox.
+
+### Approach
+**Option B - SLAM Toolbox**
+- Created SLAM launch file and parameter configuration
+- Set up map saving workflow
+- Created example map files
+
+### Created Files
+
+#### 1. SLAM Configuration
+- `src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml` - SLAM Toolbox parameters
+
+#### 2. Launch Files
+- `src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py` - SLAM建图启动文件
+
+#### 3. Documentation
+- `README_SMAP.md` - SLAM建图使用说明
+
+#### 4. Map Files
+- `maps/nav2_test_map.yaml` - 地图元数据配置
+- `maps/nav2_test_map.pgm` - 地图图像文件
+
+### Key Configuration
+
+**SLAM Parameters:**
+- Map frame: `map`
+- Base frame: `base_link`
+- Odometry frame: `odom`
+- Scan topic: `/front/scan`
+- Map resolution: 0.05 m/pixel
+- Max laser range: 25.0 m
+
+**Map Configuration:**
+- Resolution: 0.05 m/pixel
+- Origin: (-10.0, -10.0, 0.0)
+- Occupied threshold: 0.65
+- Free threshold: 0.196
+
+### Usage Commands
+
+```bash
+# 启动SLAM建图
+ros2 launch scout_mini_dual_lidar_gazebo slam.launch.py
+
+# 键盘控制机器人移动
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+# 保存地图
+ros2 run nav2_map_server map_saver_cli -f maps/nav2_test_map
+
+# 检查map话题
+ros2 topic list | grep map
+```
+
+### Dependencies Added
+- `slam_toolbox` - SLAM建图工具
+- `nav2_map_server` - 地图服务器
+
+### Verification Results
+- ✅ SLAM Toolbox configuration created
+- ✅ Launch file for SLAM建图 created
+- ✅ Map files created (yaml + pgm)
+- ✅ README documentation created
+- ✅ Package dependencies updated
+
+### Committed Files
+- src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml (new)
+- src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py (new)
+- src/scout_mini_dual_lidar_gazebo/package.xml (updated)
+- src/scout_mini_dual_lidar_gazebo/CMakeLists.txt (updated)
+- maps/nav2_test_map.yaml (new)
+- maps/nav2_test_map.pgm (new)
+- README_SMAP.md (new)
+- TASK_LOG.md (updated)

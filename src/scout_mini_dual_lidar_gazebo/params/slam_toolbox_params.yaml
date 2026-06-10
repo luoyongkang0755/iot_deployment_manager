@@ -1,0 +1,65 @@
+# SLAM Toolbox Configuration for Scout Mini Dual LiDAR
+
+slam_toolbox:
+  ros__parameters:
+    # Plugin params
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: HUBER_LOSS
+
+    # ROS Parameters
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_link
+    scan_topic: /front/scan
+    use_scan_matching: true
+    use_scan_barycenter: true
+    minimum_time_interval: 0.5
+    transform_publish_period: 0.05
+    loop_detector_search_radius: 3.0
+    loop_detector_minimum_loop_closures: 1
+    loop_detector_max_candidates: 10
+    loop_closure_consistency_check: 3
+    loop_closure_min_score: 0.7
+    max_cached_frames: 10000
+    max_cached_frames_to_subscribe: 1000
+
+    # GMapping Parameters
+    max_range: 25.0
+    minimum_score: 30.0
+    sigma: 0.05
+    kernel_size: 1
+    lstep: 0.05
+    astep: 0.05
+    iterations: 5
+    lsigma: 0.075
+    ogain: 3.0
+    lskip: 0
+    srr: 0.01
+    srt: 0.02
+    str: 0.01
+    stt: 0.02
+    linear_update: 0.5
+    angular_update: 0.2
+    temporal_update: 3.0
+    resample_threshold: 0.5
+    particles: 30
+    xmin: -20.0
+    xmax: 20.0
+    ymin: -20.0
+    ymax: 20.0
+    delta: 0.05
+    occ_thresh: 0.25
+    max_laser_range: 25.0
+
+    # Map Saving Parameters
+    map_resolution: 0.05
+    map_save_period: 60.0
+    map_name: scout_mini_map
+
+    # Debug Parameters
+    debug_logging: false
+    enable_interactive_mode: false
