@@ -925,3 +925,73 @@ ros2 run tf2_ros tf2_echo base_link front_lidar_link  # 静态变换
 - `reports/frames_chinese.md`（根据实际 TF 树更新）
 - `TASK_LOG.md`（已更新）
 - `TASK_LOG_CHINESE.md`（已更新）
+
+---
+## 任务 19 — 最小化 Nav2 启动
+
+### 目标
+在调整导航行为之前，成功启动 Nav2 并使生命周期节点变为活动状态。
+
+### 创建的文件
+- `config/nav2_params.yaml` — 最小化 Nav2 参数配置
+- `launch/nav2_launch.py` — 最小化 Nav2 启动文件
+
+### 配置的节点
+
+| 节点 | 包 | 用途 |
+|------|------|------|
+| `map_server` | nav2_map_server | 提供已保存的地图 (.pgm/.yaml) |
+| `amcl` | nav2_amcl | 蒙特卡洛定位，使用 /front/scan |
+| `planner_server` | nav2_planner | 全局路径（NavFn 规划器） |
+| `controller_server` | nav2_controller | 局部路径跟随（DWB 控制器） |
+| `recoveries_server` | nav2_behaviors | 旋转/后退/等待恢复 |
+| `bt_navigator` | nav2_bt_navigator | 行为树引擎 |
+| `waypoint_follower` | nav2_waypoint_follower | 航点执行 |
+| `lifecycle_manager` | nav2_lifecycle_manager | 自动激活所有节点 |
+
+### 关键配置详情
+
+**机器人规格：**
+- Base frame: `base_link`
+- Odometry frame: `odom`
+- Global frame: `map`
+- LiDAR 扫描话题: `/front/scan`
+- 机器人模型: differential（差速驱动）
+- 最大速度: 0.5 m/s 线速度，1.0 rad/s 角速度
+
+**代价地图：**
+- 分辨率: 0.05 m/pixel（与 SLAM 地图匹配）
+- 机器人半径: 0.3 m
+- 局部代价地图: 3m × 3m 滚动窗口，5 Hz
+- 全局代价地图: 静态地图 + 激光障碍物
+
+**规划器:** NavFn（基本网格 A*）
+**控制器:** DWB（动态窗口法）
+
+### 使用方法
+
+```bash
+# 终端 1：启动 Gazebo 仿真
+ros2 launch scout_mini_dual_lidar_gazebo scout_mini_gazebo.launch.py
+
+# 终端 2：启动 Nav2
+ros2 launch scout_mini_dual_lidar_gazebo nav2_launch.py
+
+# 在 RViz 中：用"2D Pose Estimate"设置初始位姿
+# 然后用"Nav2 Goal"发送目标点
+```
+
+### 验证命令
+
+```bash
+ros2 node list                    # 所有 7 个 Nav2 节点 + lifecycle_manager + rviz
+ros2 lifecycle nodes              # 检查生命周期状态
+ros2 topic list                   # /map, /cmd_vel, /plan, /local_plan 等
+```
+
+### 提交的文件
+- `config/nav2_params.yaml`（新增）
+- `launch/nav2_launch.py`（新增）
+- `CMakeLists.txt`（已更新 — 添加 config 目录）
+- `TASK_LOG.md`（已更新）
+- `TASK_LOG_CHINESE.md`（已更新）

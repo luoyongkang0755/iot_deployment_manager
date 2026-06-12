@@ -920,4 +920,74 @@ ros2 run tf2_ros tf2_echo base_link front_lidar_link  # Static transform
 - `reports/navigation_frames.md` (updated for actual TF tree)
 - `reports/frames_chinese.md` (updated for actual TF tree)
 - `TASK_LOG.md` (updated)
+  - `TASK_LOG_CHINESE.md` (updated)
+
+---
+## Task 19 — Minimal Nav2 Launch
+
+### Objective
+Get Nav2 nodes launched and lifecycle nodes active before tuning navigation behavior.
+
+### Created Files
+- `config/nav2_params.yaml` — Minimal Nav2 parameter configuration
+- `launch/nav2_launch.py` — Minimal Nav2 startup file
+
+### Nodes Configured
+
+| Node | Package | Purpose |
+|------|---------|---------|
+| `map_server` | nav2_map_server | Serve saved map (.pgm/.yaml) |
+| `amcl` | nav2_amcl | Monte Carlo localization with /front/scan |
+| `planner_server` | nav2_planner | Global path (NavFn planner) |
+| `controller_server` | nav2_controller | Local path following (DWB controller) |
+| `recoveries_server` | nav2_behaviors | Spin/backup/wait recovery |
+| `bt_navigator` | nav2_bt_navigator | Behavior tree engine |
+| `waypoint_follower` | nav2_waypoint_follower | Waypoint execution |
+| `lifecycle_manager` | nav2_lifecycle_manager | Auto-activate all nodes |
+
+### Key Configuration Details
+
+**Robot Specs:**
+- Base frame: `base_link`
+- Odometry frame: `odom`
+- Global frame: `map`
+- LiDAR scan topic: `/front/scan`
+- Robot model: differential drive
+- Max velocity: 0.5 m/s linear, 1.0 rad/s angular
+
+**Costmaps:**
+- Resolution: 0.05 m/pixel (matches SLAM map)
+- Robot radius: 0.3 m
+- Local costmap: 3m × 3m rolling window at 5 Hz
+- Global costmap: static map + laser obstacles
+
+**Planner:** NavFn (basic grid-based A*)
+**Controller:** DWB (Dynamic Window Approach)
+
+### Usage
+
+```bash
+# Terminal 1: Launch Gazebo simulation
+ros2 launch scout_mini_dual_lidar_gazebo scout_mini_gazebo.launch.py
+
+# Terminal 2: Launch Nav2
+ros2 launch scout_mini_dual_lidar_gazebo nav2_launch.py
+
+# In RViz: Set initial pose with "2D Pose Estimate"
+# Then send goal with "Nav2 Goal"
+```
+
+### Verification Commands
+
+```bash
+ros2 node list                    # All 7 Nav2 nodes + lifecycle_manager + rviz
+ros2 lifecycle nodes              # Check lifecycle states
+ros2 topic list                   # /map, /cmd_vel, /plan, /local_plan, etc.
+```
+
+### Submitted Files
+- `config/nav2_params.yaml` (new)
+- `launch/nav2_launch.py` (new)
+- `CMakeLists.txt` (updated — added config dir)
+- `TASK_LOG.md` (updated)
 - `TASK_LOG_CHINESE.md` (updated)
