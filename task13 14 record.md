@@ -339,5 +339,141 @@ ros2 run tf2_ros tf2_echo base_link front_lidar_link
    - Style: Points
    - Queue Size: 10
 
+### Phase 5: Teleop Cannot Control Robot Motion
+
+#### 11. Problem Description
+**Issue**: Robot displays normally in Gazebo, LiDAR data is normal, but robot does not move after sending `/cmd_vel` commands via `teleop-twist-keyboard`.
+
+#### 12. Initial Suspicions: World Plugin Conflicts
+**Hypothesis**: Explicitly declared `scene-broadcaster-system` and `user-commands-system` plugins in world file conflict with Gazebo's default loaded plugins.
+
+**Attempts**:
+- Removed `scene-broadcaster-system` and `user-commands-system` → Gazebo GUI completely blank
+- Removed only `user-commands-system` → Robot cannot spawn/display
+- Kept only `sensors-system` → Gazebo GUI blank and robot not displayed
+
+**Result**: Proved both plugins are essential, but issue unresolved.
+
+#### 13. Key Discovery: `server.config` Default Loading Behavior
+**Diagnostic Command**:
+```bash
+cat /usr/share/ignition/ignition-gazebo6/server.config
+```
+
+**Discovery**:
+```xml
+<server_config>
+  <plugins>
+    <plugin entity_name="*" entity_type="world" filename="ignition-gazebo-physics-system" name="gz::sim::systems::Physics"></plugin>
+    <plugin entity_name="*" entity_type="world" filename="ignition-gazebo-user-commands-system" name="gz::sim::systems::UserCommands"></plugin>
+    <plugin entity_name="*" entity_type="world" filename="ignition-gazebo-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+  </plugins>
+</server_config>
+```
+
+**Conclusion**:
+- Ignition Gazebo 6 (Fortress) **only loads 3 system plugins by default**: Physics, UserCommands, SceneBroadcaster
+- **When any `<plugin>` declaration appears in the world file, Gazebo stops loading default plugins from `server.config`**
+- Original world file explicitly declared Sensors + SceneBroadcaster + UserCommands, but **lacked the Physics system**
+
+#### 14. Attempts to Add Physics and Contact Systems
+**Issue**: Robot on ground but cannot move when world plugins are kept. Suspected Physics not loaded or missing Contact system.
+
+**Attempted Solutions**:
+- Added `contact-system` to world → Still cannot move
+- Added `physics-system` to world → Still cannot move
+
+**Key Discovery**: World file used `gz-sim-*` naming (e.g., `gz-sim-physics-system`), while `server.config` uses `ignition-gazebo-*` naming. In Ignition Fortress, `gz-sim-*` is **not a valid alias** for all plugins.
+
+#### 15. Correct Plugin Filenames and Add Missing Plugins
+**Correct Configuration**:
+```xml
+<plugin filename="ignition-gazebo-sensors-system" name="gz::sim::systems::Sensors">
+    <rendering>false</rendering>
+    <sensor_update_rate>10</sensor_update_rate>
+</plugin>
+<plugin filename="ignition-gazebo-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+<plugin filename="ignition-gazebo-user-commands-system" name="gz::sim::systems::UserCommands"></plugin>
+<plugin filename="ignition-gazebo-contact-system" name="gz::sim::systems::Contact"></plugin>
+<plugin filename="ignition-gazebo-physics-system" name="gz::sim::systems::Physics"></plugin>
+```
+
+**Modified Location**: `simple_test_world.world`
+
+**Result**: ✅ Success! Robot can receive `/cmd_vel` commands and move normally. LiDAR data normal. Gazebo GUI normal.
+
+---
+
+## Modified Files List (Additional)
+
+4. **simple_test_world.world** (modified again)
+   - Modified: All plugin filenames from `gz-sim-*` to `ignition-gazebo-*`
+   - Added: `contact-system` plugin (collision detection/friction)
+   - Added: `physics-system` plugin (physics engine)
+
+5. **scout_mini_gazebo.launch.py** (refactored)
+   - Fixed: ros_gz_bridge message types from `ignition.msgs.*` to `gz.msgs.*`
+   - Unified: Single `gz_bridge` node replacing multiple separate bridge instances
+   - Removed: Redundant `joint_state_publisher` node (Gazebo plugin already publishes)
+   - Removed: Redundant `tf_to_odom.py` node (diff drive plugin already publishes `/odom`)
+
+6. **scout_mini.xacro** (restored)
+   - Restored: Reverted incorrectly modified scout_mini.xacro to original base model
+   - Removed: Gazebo plugins and LiDAR definitions from scout_description package to keep it clean
+
+7. **scout_mini_gazebo.xacro** (new file)
+   - New: Integrated Scout Mini base model + dual LiDAR + Gazebo plugins (diff drive, joint state publisher, gpu_ray sensors)
+
+8. **CMakeLists.txt**
+   - Added: `urdf` directory to install
+   - Removed: Obsolete `scout_diff_drive_controller.py` and `tf_to_odom.py` installations
+
+---
+
+## Experience Summary (Additional)
+
+### Gazebo World File System Plugin Configuration
+10. **Explicit plugin declarations in world suppress default loading**:
+    - When any `<plugin>` tag exists in world file, Gazebo no longer loads default plugins from `server.config`
+    - All required plugins must be explicitly declared in the world file
+
+11. **Ignition Fortress plugin filename naming**:
+    - Must use `ignition-gazebo-*` format (e.g., `ignition-gazebo-physics-system`)
+    - `gz-sim-*` format is **not a valid alias** in Ignition Fortress
+
+12. **Required explicit plugins for Ignition Fortress world files**:
+    - `ignition-gazebo-physics-system`: Physics engine (diff drive dependency)
+    - `ignition-gazebo-scene-broadcaster-system`: Scene broadcasting (GUI rendering dependency)
+    - `ignition-gazebo-user-commands-system`: User commands (model spawn dependency)
+    - `ignition-gazebo-contact-system`: Contact detection (wheel friction dependency)
+    - `ignition-gazebo-sensors-system`: Sensor system (LiDAR dependency)
+
+### ROS-Gazebo Bridge
+13. **Message type namespace**: `ros-humble-ros-gz-bridge` uses `gz.msgs.*`, not `ignition.msgs.*`
+    - Example: `/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist`
+
+### Diff Drive Plugin
+14. **Diff drive depends on Physics system**:
+    - Even if `/cmd_vel` topic bridges correctly, if Physics system is not loaded, diff drive joint velocity commands cannot be converted to actual motion
+    - Robot may appear "on the ground" (proper spawn height), but no physics simulation is actually running
+
+---
+
+## Test Verification Commands (Additional)
+
+```bash
+# Test keyboard control
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+# Check if /cmd_vel has data
+ros2 topic echo /cmd_vel
+
+# Check if /odom has data
+ros2 topic echo /odom
+
+# Check Gazebo default config file
+cat /usr/share/ignition/ignition-gazebo6/server.config
+```
+
 ## Date
-2026-06-09 ~ 2026-06-10
+2026-06-09 ~ 2026-06-11

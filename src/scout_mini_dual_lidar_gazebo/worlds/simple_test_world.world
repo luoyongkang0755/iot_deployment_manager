@@ -16,18 +16,27 @@
       <shadows>false</shadows>
     </scene>
 
+
     <!-- Load sensors system for LiDAR and other sensors -->
-    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
-      <rendering>true</rendering>
-      <sensor_update_rate>10</sensor_update_rate>
+    <plugin filename="ignition-gazebo-sensors-system" name="gz::sim::systems::Sensors">
+      <rendering>false</rendering>
+      <sensor_update_rate>5</sensor_update_rate>
     </plugin>
 
-    <!-- Scene Broadcaster for sensor data distribution -->
-    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
+    <!-- Scene Broadcaster for GUI rendering -->
+    <plugin filename="ignition-gazebo-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
     </plugin>
 
-    <!-- User Commands for model manipulation -->
-    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands">
+    <!-- User Commands for model manipulation and spawn -->
+    <plugin filename="ignition-gazebo-user-commands-system" name="gz::sim::systems::UserCommands">
+    </plugin>
+
+    <!-- Contact system for collision detection and friction -->
+    <plugin filename="ignition-gazebo-contact-system" name="gz::sim::systems::Contact">
+    </plugin>
+
+    <!-- Physics system - required for diff drive to work -->
+    <plugin filename="ignition-gazebo-physics-system" name="gz::sim::systems::Physics">
     </plugin>
 
     <!-- Ground plane -->

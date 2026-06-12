@@ -726,74 +726,116 @@ rear_lidar_static_tf = Node(
 
 ---
 
-## 任务17 — 准备 Nav2 地图
+## 任务17 — Nav2 地图准备（含仿真调试）
 
 ### 目标
-为 Nav2 导航准备地图。
+使用 SLAM Toolbox 构建地图，解决仿真中的关键问题，为 Nav2 导航准备地图文件。
 
-### 方案选择
-**选项 B - SLAM 工具箱**
+### 关键问题与修复
 
-### 创建的文件
+#### 1. World 插件冲突导致机器人无法运动
+**现象**：Gazebo 中机器人显示正常、LiDAR 正常，但 `teleop-twist-keyboard` 无法控制运动。
 
-#### 1. SLAM 配置
-- `src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml` - SLAM Toolbox 参数
+**根因**：Ignition Gazebo 6 (Fortress) 的 `server.config` 默认只加载 3 个系统插件：Physics、UserCommands、SceneBroadcaster。当 world 文件中出现任何 `<plugin>` 声明时，Gazebo 停止加载默认插件。原始 world 文件只声明了 Sensors + SceneBroadcaster + UserCommands，**缺少 Physics 系统**，导致 diff drive 插件无法将速度指令转化为实际运动。
 
-#### 2. 启动文件
-- `src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py` - SLAM 建图启动文件
+**修复**：
+- 在 `simple_test_world.world` 中显式声明 5 个必需插件
+- 将 plugin 文件名从 `gz-sim-*` 改为 `ignition-gazebo-*`（Ignition Fortress 的实际要求）
 
-#### 3. 地图文件
-- `maps/nav2_test_map.yaml` - 地图元数据配置
-- `maps/nav2_test_map.pgm` - 地图图像文件
+#### 2. 消息类型命名空间不匹配
+**问题**：ros_gz_bridge 消息类型配置错误，`gz.msgs.*` 与 Gazebo 内部发布的 `ignition.msgs.*` 不匹配。
 
-#### 4. 文档
-- `README_SMAP.md` - SLAM 建图使用说明
+**修复**：
+- Gazebo -> ROS 方向（odom/tf/joint_states）：使用 `ignition.msgs.*`
+- ROS -> Gazebo 方向（cmd_vel）：使用 `gz.msgs.*`
 
-### 关键配置
+#### 3. TF 树断裂
+**问题**：Gazebo diff drive 发布 `scout_mini/odom -> scout_mini/base_link`（带模型名前缀），而 robot_state_publisher 发布 `base_link -> front_lidar_link` 等（无前缀），两棵 TF 树无连接。
 
-**SLAM 参数:**
-- Map frame: `map`
-- Base frame: `base_link`
-- Scan topic: `/front/scan`
-- 地图分辨率: 0.05 m/pixel
-- 最大激光距离: 25.0 m
+**修复**：添加两个身份静态 TF 变换：
+- `odom -> scout_mini/odom`（连接 odom 链）
+- `scout_mini/base_link -> base_link`（连接 base_link 链）
 
-### 使用命令
+#### 4. SLAM Toolbox 参数不匹配
+**修复**：
+- `map_name: scout_mini_map` → `map_name: map`（匹配 Nav2 默认 `/map` 话题）
+- `minimum_time_interval: 0.5` → `0.25`（匹配 5Hz LiDAR）
+- 新增 `mode: mapping`
+
+#### 5. LiDAR 频率优化
+**修改**：前后 LiDAR 更新频率从 10Hz 降至 5Hz，减少 CPU 负载。
+
+#### 6. 地图保存
+**问题**：`maps/` 目录不存在，`map_saver_cli` 报文件写入错误。
+
+**解决**：`mkdir -p maps/` 后成功保存 791×957 地图（0.05 m/pixel）。
+
+### 修改文件清单
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| [worlds/simple_test_world.world](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/worlds/simple_test_world.world) | 修改 | 显式声明 5 个系统插件（ignition-gazebo-* 格式），sensor_update_rate=5 |
+| [launch/scout_mini_gazebo.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/launch/scout_mini_gazebo.launch.py) | 重构 | 统一 bridge、修正消息类型、添加模型前缀静态 TF |
+| [urdf/scout_mini_gazebo.xacro](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/urdf/scout_mini_gazebo.xacro) | 新建 | 整合基础模型 + 双 LiDAR + Gazebo 插件 |
+| [urdf/scout_mini.xacro](file:///home/luoyongkang/scout_nav2_mini/src/external/scout_ros2/scout_description/urdf/scout_mini.xacro) | 恢复 | 恢复为原始干净基座模型 |
+| [params/slam_toolbox_params.yaml](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml) | 修改 | 优化参数（map_name/mode/minimum_time_interval） |
+| [launch/slam.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py) | 重构 | 只启动 SLAM，不启动 Gazebo/RViz |
+| [launch/display.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/external/scout_ros2/scout_description/launch/display.launch.py) | 修复 | 传递 mesh_prefix，指向正确 rviz 配置 |
+| [rviz/display.rviz](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/rviz/display.rviz) | 新建 | Fixed Frame=base_link 的 RViz 配置 |
+| [CMakeLists.txt](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/CMakeLists.txt) | 修改 | install 添加 urdf 和 rviz 目录 |
+
+### 生成的地图文件
+- `maps/nav2_test_map.pgm` — 地图图像（791×957，0.05 m/pixel）
+- `maps/nav2_test_map.yaml` — 地图元数据
+
+### 使用流程
 
 ```bash
-# 启动 SLAM 建图
+# 1. 启动仿真
+ros2 launch scout_mini_dual_lidar_gazebo scout_mini_gazebo.launch.py
+
+# 2. 启动 SLAM（新终端）
 ros2 launch scout_mini_dual_lidar_gazebo slam.launch.py
 
-# 键盘控制机器人移动
+# 3. 键盘控制建图（新终端）
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
-# 保存地图
+# 4. 保存地图（地图显示出来后）
+mkdir -p maps
 ros2 run nav2_map_server map_saver_cli -f maps/nav2_test_map
-
-# 检查 map 话题
-ros2 topic list | grep map
 ```
 
-### 添加的依赖
-- `slam_toolbox` - SLAM 建图工具
-- `nav2_map_server` - 地图服务器
+### 测试验证命令
+
+```bash
+# 检查 TF 树完整性
+ros2 run tf2_tools view_frames
+
+# 检查 /map 话题
+ros2 topic echo /map --once
+
+# 检查 Gazebo 默认配置
+cat /usr/share/ignition/ignition-gazebo6/server.config
+
+# 检查 Gazebo 内部消息类型
+ign topic -i -t /tf
+ign topic -i -t /odom
+```
+
+### 经验总结
+
+1. **World 中显式声明插件会抑制默认加载**：必须显式声明所有必需插件
+2. **Ignition Fortress 使用 `ignition-gazebo-*` 文件名**：`gz-sim-*` 不是有效别名
+3. **Gazebo 自动添加模型名前缀到 frame_id**：需静态 TF 桥接
+4. **`ros-humble-ros-gz-bridge` 消息类型需匹配 Gazebo 实际类型**：用 `ign topic -i` 确认
 
 ### 验证结果
-- ✅ SLAM Toolbox 配置已创建
-- ✅ SLAM 建图启动文件已创建
-- ✅ 地图文件已创建 (yaml + pgm)
-- ✅ README 文档已创建
-- ✅ 包依赖已更新
-
-### 提交的文件
-- src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml（新增）
-- src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py（新增）
-- src/scout_mini_dual_lidar_gazebo/package.xml（已更新）
-- src/scout_mini_dual_lidar_gazebo/CMakeLists.txt（已更新）
-- maps/nav2_test_map.yaml（新增）
-- maps/nav2_test_map.pgm（新增）
-- README_SMAP.md（新增）
-- TASK_LOG_CHINESE.md（已更新）
+- ✅ 机器人可通过键盘遥控在 Gazebo 中移动
+- ✅ 双 LiDAR 数据正常发布（5Hz）
+- ✅ SLAM 成功建图，`/map` 话题有数据
+- ✅ TF 树完整连接：`map → odom → base_link → sensors`
+- ✅ 地图成功保存为 pgm + yaml 文件
+- ✅ RViz 中可正常显示 RobotModel
 
 ---
 

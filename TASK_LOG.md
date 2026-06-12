@@ -721,76 +721,116 @@ Create a controlled Gazebo world for Nav2 testing with walls, obstacles, and suf
 
 ---
 
-## Task 17 — Map Preparation for Nav2
+## Task 17 — Map Preparation for Nav2 (with Simulation Debugging)
 
 ### Objective
-Prepare a map for Nav2 navigation using SLAM Toolbox.
+Build a map using SLAM Toolbox, resolve critical simulation issues, and prepare map files for Nav2 navigation.
 
-### Approach
-**Option B - SLAM Toolbox**
-- Created SLAM launch file and parameter configuration
-- Set up map saving workflow
-- Created example map files
+### Key Issues Fixed
 
-### Created Files
+#### 1. World Plugin Conflict Preventing Robot Motion
+**Symptom**: Robot displayed normally in Gazebo, LiDAR working, but `teleop-twist-keyboard` cannot control motion.
 
-#### 1. SLAM Configuration
-- `src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml` - SLAM Toolbox parameters
+**Root Cause**: Ignition Gazebo 6 (Fortress) `server.config` only loads 3 system plugins by default: Physics, UserCommands, SceneBroadcaster. When any `<plugin>` appears in world file, defaults are suppressed. Original world file only declared Sensors + SceneBroadcaster + UserCommands, **missing Physics system**, so diff drive plugin couldn't convert velocity commands to actual motion.
 
-#### 2. Launch Files
-- `src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py` - SLAM建图启动文件
+**Fix**:
+- Explicitly declare 5 required plugins in `simple_test_world.world`
+- Changed plugin filenames from `gz-sim-*` to `ignition-gazebo-*` (Ignition Fortress requirement)
 
-#### 3. Documentation
-- `README_SMAP.md` - SLAM建图使用说明
+#### 2. Message Type Namespace Mismatch
+**Issue**: ros_gz_bridge message type configuration incorrect — `gz.msgs.*` doesn't match Gazebo's internal `ignition.msgs.*` types.
 
-#### 4. Map Files
-- `maps/nav2_test_map.yaml` - 地图元数据配置
+**Fix**:
+- Gazebo → ROS direction (odom/tf/joint_states): use `ignition.msgs.*`
+- ROS → Gazebo direction (cmd_vel): use `gz.msgs.*`
 
+#### 3. TF Tree Disconnection
+**Issue**: Gazebo diff drive publishes `scout_mini/odom -> scout_mini/base_link` (with model name prefix), while robot_state_publisher publishes `base_link -> front_lidar_link` etc (without prefix). Two TF trees have no connection.
 
-### Key Configuration
+**Fix**: Added two identity static TF transforms:
+- `odom -> scout_mini/odom` (connects odom chain)
+- `scout_mini/base_link -> base_link` (connects base_link chain)
 
-**SLAM Parameters:**
-- Map frame: `map`
-- Base frame: `base_link`
-- Odometry frame: `odom`
-- Scan topic: `/front/scan`
-- Map resolution: 0.05 m/pixel
-- Max laser range: 25.0 m
+#### 4. SLAM Toolbox Parameter Mismatch
+**Fix**:
+- `map_name: scout_mini_map` → `map_name: map` (matches Nav2 default `/map` topic)
+- `minimum_time_interval: 0.5` → `0.25` (matches 5Hz LiDAR)
+- Added `mode: mapping`
 
-**Map Configuration:**
-- Resolution: 0.05 m/pixel
-- Origin: (-10.0, -10.0, 0.0)
-- Occupied threshold: 0.65
-- Free threshold: 0.196
+#### 5. LiDAR Frequency Optimization
+**Change**: Reduced LiDAR update_rate from 10Hz to 5Hz to reduce CPU load.
 
-### Usage Commands
+#### 6. Map Saving
+**Issue**: `maps/` directory didn't exist, `map_saver_cli` threw file write error.
+
+**Fix**: `mkdir -p maps/` then successfully saved 791×957 map (0.05 m/pixel).
+
+### Modified Files
+
+| File | Action | Description |
+|------|--------|-------------|
+| [worlds/simple_test_world.world](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/worlds/simple_test_world.world) | Modified | Explicitly declare 5 system plugins (ignition-gazebo-* format), sensor_update_rate=5 |
+| [launch/scout_mini_gazebo.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/launch/scout_mini_gazebo.launch.py) | Refactored | Unified bridges, fixed message types, added model prefix static TFs |
+| [urdf/scout_mini_gazebo.xacro](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/urdf/scout_mini_gazebo.xacro) | New | Integrated base model + dual LiDAR + Gazebo plugins |
+| [urdf/scout_mini.xacro](file:///home/luoyongkang/scout_nav2_mini/src/external/scout_ros2/scout_description/urdf/scout_mini.xacro) | Restored | Restored to clean base model |
+| [params/slam_toolbox_params.yaml](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml) | Modified | Optimized params (map_name/mode/minimum_time_interval) |
+| [launch/slam.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py) | Refactored | Only launches SLAM, no Gazebo/RViz |
+| [launch/display.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/external/scout_ros2/scout_description/launch/display.launch.py) | Fixed | Pass mesh_prefix, point to correct RViz config |
+| [rviz/display.rviz](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/rviz/display.rviz) | New | RViz config with Fixed Frame=base_link |
+| [CMakeLists.txt](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/CMakeLists.txt) | Modified | Install urdf and rviz directories |
+
+### Generated Map Files
+- `maps/nav2_test_map.pgm` — Map image (791×957, 0.05 m/pixel)
+- `maps/nav2_test_map.yaml` — Map metadata
+
+### Usage Flow
 
 ```bash
-# 启动SLAM建图
+# 1. Launch simulation
+ros2 launch scout_mini_dual_lidar_gazebo scout_mini_gazebo.launch.py
+
+# 2. Launch SLAM (new terminal)
 ros2 launch scout_mini_dual_lidar_gazebo slam.launch.py
 
-# 键盘控制机器人移动
+# 3. Teleop for mapping (new terminal)
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
-# 保存地图
+# 4. Save map (after map appears in RViz)
+mkdir -p maps
 ros2 run nav2_map_server map_saver_cli -f maps/nav2_test_map
-
-# 检查map话题
-ros2 topic list | grep map
 ```
 
-### Dependencies Added
-- `slam_toolbox` - SLAM建图工具
-- `nav2_map_server` - 地图服务器
+### Verification Commands
 
+```bash
+# Check TF tree completeness
+ros2 run tf2_tools view_frames
 
-### Committed Files
-- src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml (new)
-- src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py (new)
-- src/scout_mini_dual_lidar_gazebo/package.xml (updated)
-- src/scout_mini_dual_lidar_gazebo/CMakeLists.txt (updated)
-- maps/nav2_test_map.yaml (new)
-- README_SMAP.md (new)
+# Check /map topic
+ros2 topic echo /map --once
+
+# Check Gazebo default config
+cat /usr/share/ignition/ignition-gazebo6/server.config
+
+# Check Gazebo internal message types
+ign topic -i -t /tf
+ign topic -i -t /odom
+```
+
+### Key Takeaways
+
+1. **Explicit world plugins suppress default loading**: Must declare all required plugins
+2. **Ignition Fortress uses `ignition-gazebo-*` filenames**: `gz-sim-*` is not a valid alias
+3. **Gazebo prepends model name to frame_ids**: Need static TF to bridge naming
+4. **`ros-humble-ros-gz-bridge` types must match Gazebo**: Use `ign topic -i` to verify
+
+### Verification Results
+- ✅ Robot can be teleoperated in Gazebo
+- ✅ Dual LiDAR data publishing (5Hz)
+- ✅ SLAM mapping working, `/map` topic has data
+- ✅ TF tree fully connected: `map → odom → base_link → sensors`
+- ✅ Map saved as pgm + yaml files
+- ✅ RobotModel displays correctly in RViz
 
 
 ---

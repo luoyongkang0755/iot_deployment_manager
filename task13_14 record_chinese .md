@@ -339,5 +339,290 @@ ros2 run tf2_ros tf2_echo base_link front_lidar_link
    - Style: Points
    - Queue Size: 10
 
+### 第五阶段：Teleop 无法控制机器人运动
+
+#### 11. 问题描述
+**问题**：Gazebo 中机器人显示正常、LiDAR 数据正常，但使用 `teleop-twist-keyboard` 发送 `/cmd_vel` 指令后机器人不运动。
+
+#### 12. 初步怀疑：World 插件冲突
+**怀疑**：World 中显式声明的 `scene-broadcaster-system` 和 `user-commands-system` 与 Gazebo 默认加载的插件重复，导致冲突。
+
+**尝试**：
+- 删除 `scene-broadcaster-system` 和 `user-commands-system` → Gazebo GUI 一片空白
+- 只删除 `user-commands-system` → 机器人无法 spawn/显示
+- 只保留 `sensors-system` → Gazebo GUI 一片空白且机器人不显示
+
+**结果**：证明这两个插件是必需的，但问题未解决。
+
+#### 13. 关键发现：`server.config` 默认加载行为
+**诊断命令**：
+```bash
+cat /usr/share/ignition/ignition-gazebo6/server.config
+```
+
+**发现**：
+```xml
+<server_config>
+  <plugins>
+    <plugin entity_name="*" entity_type="world" filename="ignition-gazebo-physics-system" name="gz::sim::systems::Physics"></plugin>
+    <plugin entity_name="*" entity_type="world" filename="ignition-gazebo-user-commands-system" name="gz::sim::systems::UserCommands"></plugin>
+    <plugin entity_name="*" entity_type="world" filename="ignition-gazebo-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+  </plugins>
+</server_config>
+```
+
+**结论**：
+- Ignition Gazebo 6 (Fortress) **默认只加载 3 个系统插件**：Physics、UserCommands、SceneBroadcaster
+- **当 world 文件中出现任何 `<plugin>` 声明时，Gazebo 会停止加载 `server.config` 中的默认插件**
+- 原始 world 文件显式声明了 Sensors + SceneBroadcaster + UserCommands，但**缺少 Physics 系统**
+
+#### 14. 尝试添加 Physics 和 Contact 系统
+**问题**：保留 world 插件时机器人在地面上但不能运动，怀疑 Physics 未加载或缺少 Contact 系统。
+
+**尝试方案**：
+- 在 world 中添加 `contact-system` → 仍不能运动
+- 在 world 中添加 `physics-system` → 仍不能运动
+
+**关键发现**：world 文件中使用的是 `gz-sim-*` 命名（如 `gz-sim-physics-system`），而 `server.config` 中使用的是 `ignition-gazebo-*` 命名。在 Ignition Fortress 中，`gz-sim-*` 并非所有插件的有效别名。
+
+#### 15. 修正 Plugin 文件名并补充缺失插件
+**正确配置**：
+```xml
+<plugin filename="ignition-gazebo-sensors-system" name="gz::sim::systems::Sensors">
+    <rendering>false</rendering>
+    <sensor_update_rate>10</sensor_update_rate>
+</plugin>
+<plugin filename="ignition-gazebo-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+<plugin filename="ignition-gazebo-user-commands-system" name="gz::sim::systems::UserCommands"></plugin>
+<plugin filename="ignition-gazebo-contact-system" name="gz::sim::systems::Contact"></plugin>
+<plugin filename="ignition-gazebo-physics-system" name="gz::sim::systems::Physics"></plugin>
+```
+
+**修改位置**：`simple_test_world.world`
+
+**结果**：✅ 成功！机器人能正常接收 `/cmd_vel` 指令并运动，LiDAR 数据正常，Gazebo GUI 正常。
+
+---
+
+## 修改文件清单（新增）
+
+4. **simple_test_world.world**（再次修改）
+   - 修改：所有 plugin 文件名从 `gz-sim-*` 改为 `ignition-gazebo-*`
+   - 添加：`contact-system` 插件（碰撞检测/摩擦力）
+   - 添加：`physics-system` 插件（物理引擎）
+
+5. **scout_mini_gazebo.launch.py**（重构）
+   - 修正：ros_gz_bridge 消息类型从 `ignition.msgs.*` 改为 `gz.msgs.*`
+   - 统一：用一个 `gz_bridge` 节点替代分散的多个 bridge 实例
+   - 移除：冗余的 `joint_state_publisher` 节点（Gazebo 插件已发布）
+   - 移除：冗余的 `tf_to_odom.py` 节点（diff drive 插件已发布 `/odom`）
+
+6. **scout_mini.xacro**（恢复）
+   - 恢复：将之前被错误修改的 scout_mini.xacro 恢复为原始基础模型
+   - 移除：从 scout_description 包中移除 Gazebo 插件和 LiDAR 定义，保持包纯净
+
+7. **scout_mini_gazebo.xacro**（新建）
+   - 新建：整合 Scout Mini 基础模型 + 前后双 LiDAR + Gazebo 插件（diff drive、joint state publisher、gpu_ray 传感器）
+
+8. **CMakeLists.txt**
+   - 添加：`urdf` 目录到 install
+   - 移除：废弃的 `scout_diff_drive_controller.py` 和 `tf_to_odom.py` 安装
+
+---
+
+## 经验总结（新增）
+
+### Gazebo World 文件系统插件配置
+10. **World 中显式声明插件会抑制默认加载**：
+    - 当 world 文件中有任何 `<plugin>` 标签时，Gazebo 不再加载 `server.config` 中的默认插件
+    - 必须在 world 中显式声明所有必需插件
+
+11. **Ignition Fortress 的 plugin 文件名命名**：
+    - 必须使用 `ignition-gazebo-*` 格式（如 `ignition-gazebo-physics-system`）
+    - `gz-sim-*` 格式在 Ignition Fortress 中**不是有效别名**
+
+12. **World 中显式声明的必需插件清单（Ignition Fortress）**：
+    - `ignition-gazebo-physics-system`：物理引擎（diff drive 依赖）
+    - `ignition-gazebo-scene-broadcaster-system`：场景广播（GUI 渲染依赖）
+    - `ignition-gazebo-user-commands-system`：用户命令（模型 spawn 依赖）
+    - `ignition-gazebo-contact-system`：接触检测（轮子摩擦力依赖）
+    - `ignition-gazebo-sensors-system`：传感器系统（LiDAR 依赖）
+
+### ROS-Gazebo 桥接
+13. **消息类型命名空间**：`ros-humble-ros-gz-bridge` 使用 `gz.msgs.*`，不是 `ignition.msgs.*`
+    - 例如：`/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist`
+
+### Diff Drive 插件
+14. **Diff drive 依赖 Physics 系统**：
+    - 即使 `/cmd_vel` 话题正常桥接，如果 Physics 系统未加载，diff drive 设置的关节速度指令无法转化为实际运动
+    - 机器人可能看起来"在地面上"（spawn 高度合适），但实际上没有物理模拟
+
+---
+
+## 测试验证命令（新增）
+
+```bash
+# 测试键盘控制
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
+# 检查 /cmd_vel 是否有数据
+ros2 topic echo /cmd_vel
+
+# 检查 /odom 是否有数据
+ros2 topic echo /odom
+
+# 检查 Gazebo 默认配置文件
+cat /usr/share/ignition/ignition-gazebo6/server.config
+```
+
+### 第六阶段：TF 树断裂与 SLAM 建图失败
+
+#### 16. TF 树中缺少 odom frame
+**问题**：SLAM 不生成地图，TF 树中只有 `scout_mini/odom -> scout_mini/base_link`（Gazebo 自动添加模型名前缀），而没有 `odom -> base_link`。SLAM 配置期望 `odom_frame: odom, base_frame: base_link`，不匹配。
+
+**诊断过程**：
+```bash
+ros2 run tf2_tools view_frames
+# 结果：TF 树分为两个独立子树
+# 子树A (Gazebo bridge): scout_mini/odom -> scout_mini/base_link
+# 子树B (robot_state_publisher): base_link -> front_lidar_link, rear_lidar_link, ...
+# 两棵树无连接！
+```
+
+**根因**：Gazebo diff drive 插件发布的所有 frame_id 都带有 `scout_mini/` 模型名前缀，而 `robot_state_publisher` 发布的标准 URDF 帧不带前缀，导致 TF 链断裂。
+
+**解决方案**：在 [scout_mini_gazebo.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/launch/scout_mini_gazebo.launch.py) 中添加两个身份静态 TF 变换桥接两棵树：
+```python
+# 连接 odom -> scout_mini/odom (identity)
+model_prefix_tf_odom = Node(
+    package='tf2_ros',
+    executable='static_transform_publisher',
+    arguments=['0', '0', '0', '0', '0', '0', 'odom', 'scout_mini/odom']
+)
+
+# 连接 scout_mini/base_link -> base_link (identity)
+model_prefix_tf_base = Node(
+    package='tf2_ros',
+    executable='static_transform_publisher',
+    arguments=['0', '0', '0', '0', '0', '0', 'scout_mini/base_link', 'base_link']
+)
+```
+
+**最终 TF 链**：
+```
+map -> odom -> scout_mini/odom -> scout_mini/base_link -> base_link -> front_lidar_link -> ...
+  SLAM    static(id)   diff_drive bridge    static(id)       robot_state_publisher
+```
+
+#### 17. SLAM Toolbox 参数优化
+**问题**：SLAM 启动后不生成地图，`/map` 话题无数据。
+
+**诊断发现**：
+- `map_name` 参数设置为 `scout_mini_map`，导致发布话题为 `/scout_mini_map` 而非 `/map`
+- `minimum_time_interval: 0.5` 与 5Hz LiDAR（每 0.2s 一帧）不匹配，丢弃 60% 扫描帧
+- 缺少 `mode: mapping` 显式声明
+
+**修改位置**：[slam_toolbox_params.yaml](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml)
+- `map_name: scout_mini_map` → `map_name: map`
+- `minimum_time_interval: 0.5` → `minimum_time_interval: 0.25`
+- 新增 `mode: mapping`
+
+#### 18. LiDAR 频率降至 5Hz
+**问题**：LiDAR 10Hz 更新频率过高，CPU 负载大且对 SLAM 建图不必要。
+
+**修改文件**：
+- [scout_mini_gazebo.xacro](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/urdf/scout_mini_gazebo.xacro)：前后 LiDAR 的 `<update_rate>` 从 10 改为 5
+- [simple_test_world.world](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/worlds/simple_test_world.world)：`<sensor_update_rate>` 从 10 改为 5
+
+#### 19. slam.launch.py 重构
+**问题**：原 slam.launch.py 会启动 Gazebo 和 RViz，导致重复启动或冲突。
+
+**修改**：[slam.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/launch/slam.launch.py) 现在只启动 SLAM Toolbox 节点，不再包含 Gazebo 和 RViz。Gazebo + RViz 由 `scout_mini_gazebo.launch.py` 单独管理。
+
+#### 20. 地图保存成功
+**错误记录**：
+```
+[ERROR] [map_io]: Failed to write map for reason: Magick: Unable to open file (maps/nav2_test_map.pgm)
+```
+**原因**：`/ws/maps/` 目录不存在。
+
+**解决**：
+```bash
+mkdir -p /ws/maps
+ros2 run nav2_map_server map_saver_cli -f maps/nav2_test_map
+```
+**结果**：✅ 成功保存 791×957 地图（0.05 m/pixel），生成 `nav2_test_map.pgm` 和 `nav2_test_map.yaml`。
+
+#### 21. display.launch.py 修复
+**问题**：
+- RViz 配置文件 `display.rviz` 不存在，导致 RViz 启动后空白
+- xacro 未传递 `mesh_prefix` 参数
+- 默认 Fixed Frame 为 `map`（不存在的帧）
+
+**修改**：
+- 新建 [rviz/display.rviz](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/rviz/display.rviz)（Fixed Frame = `base_link`，预配置 RobotModel + TF 显示）
+- 更新 [display.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/external/scout_ros2/scout_description/launch/display.launch.py)：传递 `mesh_prefix:=package://scout_description`，指向正确的 rviz 配置路径
+- 更新 [CMakeLists.txt](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/CMakeLists.txt)：添加 `rviz` 目录到 install
+
+---
+
+## 修改文件清单（第六阶段新增）
+
+9. **simple_test_world.world**（再次修改）
+   - plugin 文件名从 `gz-sim-*` 改为 `ignition-gazebo-*`（解决 Physics 不加载）
+   - 显式声明 5 个必需插件：Physics、SceneBroadcaster、UserCommands、Contact、Sensors
+   - sensor_update_rate 从 10 降至 5
+
+10. **scout_mini_gazebo.launch.py**（重构）
+    - 统一 `gz_bridge` 节点替代多个分散 bridge
+    - `/odom`、`/tf`、`/joint_states` 使用 `ignition.msgs.*` 类型
+    - `/cmd_vel`、`/front/scan`、`/rear/scan` 使用 `gz.msgs.*` 类型
+    - 添加 `model_prefix_tf_odom` 和 `model_prefix_tf_base` 静态 TF
+    - 移除冗余 `joint_state_publisher` 和 `tf_to_odom`
+
+11. **scout_mini.xacro**（恢复）
+    - 恢复为原始干净基座模型，移除非基座 Gazebo 插件和 LiDAR
+
+12. **scout_mini_gazebo.xacro**（新建）
+    - 整合基座模型 + 双 LiDAR + Gazebo 插件
+
+13. **slam_toolbox_params.yaml**（优化）
+    - `map_name: map`、`mode: mapping`、`minimum_time_interval: 0.25`
+
+14. **slam.launch.py**（重构）
+    - 只启动 SLAM Toolbox，移除 Gazebo 和 RViz
+
+15. **display.launch.py**（修复）
+    - 传递 `mesh_prefix`、指向正确 rviz 配置
+
+16. **CMakeLists.txt**
+    - install 添加 `urdf` 和 `rviz` 目录
+
+17. **rviz/display.rviz**（新建）
+    - Fixed Frame = base_link, 预配置显示
+
+18. **maps/nav2_test_map.pgm + nav2_test_map.yaml**（新建）
+    - SLAM 建图产物，供 Nav2 导航使用
+
+---
+
+## 经验总结（第六阶段新增）
+
+### 消息类型命名空间
+15. **`ros-humble-ros-gz-bridge` 的消息类型映射**：
+    - Gazebo -> ROS 方向：需匹配 Gazebo 内部实际发布类型，通常是 `ignition.msgs.*`
+    - ROS -> Gazebo 方向：使用 `gz.msgs.*` 也可以工作（bridge 内部有别名）
+    - 最佳实践：使用 `ign topic -i -t <topic>` 确认 Gazebo 侧实际类型后配置
+
+### TF 模型名前缀
+16. **Gazebo 自动添加模型名前缀**：diff drive 插件发布的 TF 帧都带 `{model_name}/` 前缀
+    - 必须用静态 TF 桥接到 ROS 标准帧名（`odom`、`base_link`）
+    - 这是 SLAM 和 Nav2 工作的前提
+
+### SLAM 建图
+17. **SLAM Toolbox 只能订阅单个 scan topic**：双 LiDAR 场景需先用 `laserscan_multi_merger` 合并
+18. **`map_name` 决定发布的话题名**：Nav2 期望 `/map` 话题
+19. **`minimum_time_interval` 应匹配 LiDAR 更新率**：否则会丢帧
+
 ## 日期
-2026-06-09 ~ 2026-06-10
+2026-06-09 ~ 2026-06-12
