@@ -2,33 +2,84 @@
 
 ## Overview
 
-This report explains the coordinate frame chain and their interrelationships used in the Nav2 navigation system, specifically for the Scout Mini dual-lidar robot.
+This report explains the coordinate frame chain and their interrelationships used in the Nav2 navigation system, specifically for the Scout Mini dual-lidar robot. Updates in Task 18 reflect the actual TF tree after resolving the Gazebo model name prefix issue.
 
 ---
 
-## Coordinate Frame Chain Structure
+## Actual TF Tree Structure (Task 18 Verification)
+
+The TF tree was verified via `ros2 run tf2_tools view_frames`. The actual chain includes **model prefix bridge frames** inserted between Gazebo's name-scoped frames and ROS standard frames:
+
+```
+Map      SLAM publishes       map → odom
+Localization                 (updated by AMCL or SLAM Toolbox)
+
+Prefix   Static identity TF   odom → scout_mini/odom
+Bridge    (added in Task 17)  scout_mini/base_link → base_link
+
+Gazebo   Diff drive plugin    scout_mini/odom → scout_mini/base_link
+Odometry  (with "scout_mini/" prefix)
+
+URDF     robot_state_publisher base_link → [front_lidar_link, rear_lidar_link,
+Static                          base_footprint, inertial_link,
+Transforms                      front_left_wheel_link, ...]
+```
 
 ### Complete Coordinate Frame Chain
 
 ```
-map → odom → base_link → [front_lidar_link, rear_lidar_link]
+map → odom → scout_mini/odom → scout_mini/base_link → base_link → front_lidar_link
+        ↓                              ↑
+  (diff drive plugin publishes)  (static TF identity bridge)
 ```
 
-### Coordinate Frame Hierarchy Diagram
+```
+map → odom → scout_mini/odom → scout_mini/base_link → base_link → rear_lidar_link
+```
+
+### Why the prefix bridge is needed
+
+Ignition Gazebo diff drive plugin automatically prepends the model name (`scout_mini/`) to all frame IDs it publishes. This creates two disconnected TF sub-trees:
+
+- **Sub-tree A** (from Gazebo bridge): `scout_mini/odom → scout_mini/base_link` (50 Hz)
+- **Sub-tree B** (from robot_state_publisher): `base_link → front_lidar_link, rear_lidar_link, ...`
+
+Without the bridge, SLAM Toolbox cannot find `odom → base_link` because `odom` and `base_link` (without prefix) are in different sub-trees — the TF chain is broken.
+
+**Solution** (implemented in [scout_mini_gazebo.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/launch/scout_mini_gazebo.launch.py)):
+
+```python
+# Connect standard ROS odom to Gazebo's scout_mini/odom (identity)
+static_transform_publisher 0 0 0 0 0 0 odom scout_mini/odom
+
+# Connect Gazebo's scout_mini/base_link to ROS's base_link (identity)
+static_transform_publisher 0 0 0 0 0 0 scout_mini/base_link base_link
+```
+
+### Coordinate Frame Hierarchy Diagram (Actual)
 
 ```
-map (World Coordinate Frame)
-  └── odom (Odometry Coordinate Frame)
-        └── base_link (Robot Base Coordinate Frame)
-              ├── base_footprint (Ground Projection Coordinate Frame)
-              ├── front_lidar_link (Front LiDAR Coordinate Frame)
-              ├── rear_lidar_link (Rear LiDAR Coordinate Frame)
-              ├── front_left_wheel_link (Front Left Wheel Coordinate Frame)
-              ├── front_right_wheel_link (Front Right Wheel Coordinate Frame)
-              ├── rear_left_wheel_link (Rear Left Wheel Coordinate Frame)
-              ├── rear_right_wheel_link (Rear Right Wheel Coordinate Frame)
-              └── inertial_link (Inertial Coordinate Frame)
+map                          (SLAM / AMCL)
+  └── odom                   (ROS standard: identity bridge target)
+        └── scout_mini/odom  (Gazebo odom frame with model prefix)
+              └── scout_mini/base_link  (Gazebo base frame with model prefix)
+                    └── base_link       (ROS standard: identity bridge source)
+                          ├── base_footprint          (Ground projection)
+                          ├── front_lidar_link        (Front RS-AIRY LiDAR)
+                          ├── rear_lidar_link         (Rear RS-AIRY LiDAR)
+                          ├── front_left_wheel_link   (Front left wheel)
+                          ├── front_right_wheel_link  (Front right wheel)
+                          ├── rear_left_wheel_link    (Rear left wheel)
+                          ├── rear_right_wheel_link   (Rear right wheel)
+                          └── inertial_link           (IMU / inertial)
 ```
+
+**Gazebo Sensor Frames** (internal):
+```
+scout_mini/base_link/front_lidar_sensor  →  parent: front_lidar_link
+scout_mini/base_link/rear_lidar_sensor   →  parent: rear_lidar_link
+```
+These are published by `robot_state_publisher` and only used by Gazebo sensors internally; not needed in RViz directly.
 
 ---
 
@@ -37,23 +88,26 @@ map (World Coordinate Frame)
 ### 1. map Coordinate Frame (World Coordinate Frame)
 
 **Definition:**
-- A globally fixed world coordinate frame
+- A globally fixed world coordinate frame aligned with the map origin
 - Used for long-term navigation and global path planning
-- Typically aligned with the map origin
 
 **Characteristics:**
 - Fixed in place (relative to the world)
-- Maintained by SLAM or the map server
-- Allows drift (accumulates errors over time)
+- Maintained by SLAM Toolbox (mapping mode) or AMCL (localization mode)
+- Discontinuous — may jump when re-localized
+
+**Publisher:** SLAM Toolbox node or AMCL node
+**Transform Type:** Dynamic (updated periodically)
 
 **Usage:**
-- Global path planning
-- Map localization
+- Global path planning (Nav2 PlannerServer)
+- Map visualization in RViz
 - Long-term task execution
 
-**In RViz2:**
-- When the Fixed Frame is set to `map`, you can see the robot's global position within the map
-- Map data is typically published in the map coordinate frame
+**SLAM Toolbox Config** ([slam_toolbox_params.yaml](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/params/slam_toolbox_params.yaml#L15)):
+```yaml
+map_frame: map
+```
 
 ---
 
@@ -61,148 +115,131 @@ map (World Coordinate Frame)
 
 **Definition:**
 - A local coordinate frame whose origin is the robot's starting position
-- Calculated via wheel odometry or visual odometry
-- Accurate in the short term, but drifts over time
+- Represents the robot's motion as estimated by wheel odometry
+- Accurate short-term but drifts long-term due to integration errors
 
 **Characteristics:**
-- Relative to the robot's starting position
+- Continuous and smooth — no jumps
 - High short-term precision (centimeter-level)
-- Accumulates errors over time (drift)
-- Continuous but may drift
+- Accumulates unbounded drift over time
+
+**Publisher:** Diff drive plugin in Gazebo (via `ros_gz_bridge` to ROS)
+**Transform Type:** Smooth, continuous updates at 50 Hz
+
+**Diff Drive Plugin Config** ([scout_mini_gazebo.xacro](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/urdf/scout_mini_gazebo.xacro#L157)):
+```xml
+<odom_frame>odom</odom_frame>
+<robot_base_frame>base_footprint</robot_base_frame>
+<odom_publish_frequency>50</odom_publish_frequency>
+```
 
 **Usage:**
-- Local path tracking
+- Local path tracking (Nav2 ControllerServer)
 - Short-term obstacle avoidance
-- Precise local motion control
-
-**Relationship with map:**
-- The `map → odom` transform is calculated by the localization system (e.g., AMCL)
-- This transform is adjusted over time to correct for odometry drift
+- `map → odom` transform published by SLAM/AMCL to correct drift
 
 ---
 
-### 3. base_link Coordinate Frame (Robot Base Coordinate Frame)
+### 3. scout_mini/odom and scout_mini/base_link (Gazebo Prefix Frames)
+
+**Background:**
+Ignition Gazebo automatically prepends `{model_name}/` to all frame IDs published by model plugins. For our model named `scout_mini`, the diff drive plugin publishes:
+- `scout_mini/odom → scout_mini/base_link`
+
+**Bridge Frames** (identity transforms):
+- `odom → scout_mini/odom` — bridges ROS standard to Gazebo-scoped frame
+- `scout_mini/base_link → base_link` — bridges Gazebo-scoped to ROS standard frame
+
+Both are **zero offset** (identity) transforms: translation = (0,0,0), rotation = (0,0,0).
+
+**Publisher:** static_transform_publisher in launch file
+**Transform Type:** Static (never changes)
+
+These frames exist purely to connect the two naming conventions; they do not represent any physical offset.
+
+---
+
+### 4. base_link Coordinate Frame (Robot Base Coordinate Frame)
 
 **Definition:**
-- A coordinate frame fixed to the robot's body
-- Typically located at the robot's geometric center or rotation center
-- All sensors and actuators are referenced relative to this frame
+- A coordinate frame fixed to the robot's body at its geometric center
+- All sensors and URDF static transforms are relative to this frame
 
 **Characteristics:**
 - Moves with the robot
-- Serves as the robot's "body" coordinate frame
-- The parent frame for all sensor coordinate frames
+- Serves as the robot's "body" frame
+- The parent for all sensor/wheel frames defined in URDF
+
+**Position on Scout Mini:**
+- Center of robot body (base_x_size/2 from front, base_y_size/2 from sides)
+- Height: wheel_radius (0.145m) above ground (z-offset from base_footprint at ground level)
 
 **Usage:**
-- Sensor data fusion
-- Motion control
-- Reference point for coordinate transformations
+- Sensor data fusion reference
+- Motion control target
+- URDF transform tree root
 
-**On the Scout Mini:**
-- Located at the robot's center
-- Height is 0.145m above the ground (wheel radius)
+**SLAM Toolbox Config:**
+```yaml
+base_frame: base_link
+```
 
 ---
 
-### 4. base_footprint Coordinate Frame (Ground Projection Coordinate Frame)
+### 5. base_footprint Coordinate Frame (Ground Projection)
 
 **Definition:**
-- The vertical projection of base_link onto the ground
-- Same X and Y position as base_link, but Z=0 (ground level)
+- The vertical projection of base_link onto the ground plane (z = -wheel_radius from base_link)
+- Same X/Y position as base_link, Z = 0 at ground level
 
-**Characteristics:**
-- Reference point for 2D navigation
-- Used for planar mobile robots
+**URDF Definition** ([scout_mini.xacro](file:///home/luoyongkang/scout_nav2_mini/src/external/scout_ros2/scout_description/urdf/scout_mini.xacro#L52-L56)):
+```xml
+<joint name="base_footprint_joint" type="fixed">
+    <origin xyz="0 0 ${-wheel_radius}" rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="base_footprint" />
+</joint>
+```
+Where `wheel_radius = 0.145m`, so `base_footprint` is 0.145m below `base_link`.
 
 **Usage:**
-- 2D path planning
-- Costmap calculation
+- 2D navigation and costmap reference point
+- Used by Nav2's footprint model
 
 ---
 
-### 5. LiDAR Coordinate Frames
+### 6. LiDAR Coordinate Frames
 
-#### Front LiDAR Coordinate Frame
+#### Front LiDAR (RS-AIRY)
 
-**Frame Names:**
-- In URDF: `front_lidar_link`
-- In Gazebo: `scout_mini/base_link/front_lidar_sensor`
-- Connected via static TF transform
+**Frame Name:** `front_lidar_link`
 
-**Position:**
-- Relative to base_link: (x=0.245, y=0, z=0.14)
-- Located at the front center of the robot
-
-**Usage:**
-- Front obstacle detection
-- Forward SLAM mapping
-- Forward path planning
-
-#### Rear LiDAR Coordinate Frame
-
-**Frame Names:**
-- In URDF: `rear_lidar_link`
-- In Gazebo: `scout_mini/base_link/rear_lidar_sensor`
-- Connected via static TF transform
-
-**Position:**
-- Relative to base_link: (x=-0.245, y=0, z=0.14)
-- Located at the rear center of the robot
-
-**Usage:**
-- Rear obstacle detection
-- Backward SLAM mapping
-- 360° environment perception
-
----
-
-## Detailed Coordinate Frame Transforms
-
-### map → odom Transform
-
-**Publisher:** AMCL or SLAM node
-
-**Characteristics:**
-- Adjusted over time
-- Corrects odometry drift
-- Discontinuous (may jump)
-
-**Calculation:**
+**Position Relative to base_link** ([scout_mini_gazebo.xacro](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/urdf/scout_mini_gazebo.xacro#L111)):
+```xml
+<origin xyz="${base_x_size/2 - 0.08} 0.0 ${base_z_size/2 + 0.05}" rpy="0 0 0" />
+<!-- = (0.245, 0, 0.14) --!>
 ```
-T_map_odom = T_map_robot_actual × T_odom_robot_odom^-1
+- 0.245m forward from center
+- 0.14m above base_link center
+
+**Sensor topic:** `/front/scan` (published at 5 Hz)
+**360°** horizontal scan (samples=360, resolution=1°)
+
+#### Rear LiDAR (RS-AIRY)
+
+**Frame Name:** `rear_lidar_link`
+
+**Position Relative to base_link** ([scout_mini_gazebo.xacro](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/urdf/scout_mini_gazebo.xacro#L141)):
+```xml
+<origin xyz="${-base_x_size/2 + 0.08} 0.0 ${base_z_size/2 + 0.05}" rpy="0 0 3.14159" />
+<!-- = (-0.245, 0, 0.14) with 180° yaw rotation --!>
 ```
+- 0.245m backward from center
+- 0.14m above base_link center
+- 180° yaw rotation (facing rear)
 
-### odom → base_link Transform
-
-**Publisher:** robot_state_publisher
-
-**Characteristics:**
-- Continuous and smooth
-- Derived from odometry data
-- Accumulates errors
-
-**Data Sources:**
-- Wheel odometry
-- Visual odometry
-- IMU data fusion
-
-### base_link → LiDAR Transform
-
-**Publisher:** Static TF publisher node
-
-**Characteristics:**
-- Fixed and unchanging
-- Derived from the URDF model
-- Precisely known
-
-**Transform Values:**
-```python
-# Front LiDAR
-base_link → front_lidar_link: (0.245, 0, 0.14, 0, 0, 0)
-
-# Rear LiDAR
-base_link → rear_lidar_link: (-0.245, 0, 0.14, 3.14159, 0, 0)
-```
+**Sensor topic:** `/rear/scan` (published at 5 Hz)
+**360°** horizontal scan
 
 ---
 
@@ -212,102 +249,175 @@ base_link → rear_lidar_link: (-0.245, 0, 0.14, 3.14159, 0, 0)
 
 | Feature | map | odom |
 |---------|-----|------|
-| **Origin** | World-fixed point | Robot starting position |
-| **Stability** | Globally fixed | Moves with the robot |
-| **Accuracy** | Accurate long-term | Accurate short-term, drifts long-term |
-| **Continuity** | May jump | Continuous and smooth |
-| **Usage** | Global planning | Local control |
-| **Transform Calculation** | AMCL/SLAM | Odometry |
+| **Origin** | World-fixed point (map origin) | Robot's starting position |
+| **Stability** | Globally fixed, may jump | Moves with robot, always smooth |
+| **Accuracy** | Long-term accurate (with loop closure) | Short-term accurate, drifts unbounded |
+| **Continuity** | Discontinuous (jumps on re-localization) | Continuous and smooth |
+| **Publisher** | SLAM Toolbox / AMCL | Gazebo diff drive → ros_gz_bridge |
+| **Update Rate** | ~2–10 Hz (SLAM-dependent) | 50 Hz (odom_publish_frequency) |
+| **Usage** | Global path planning, map-based tasks | Local motion control, obstacle avoidance |
+| **Error Accumulation** | Bounded by loop closure / map matching | Unbounded drift accumulation |
 
-### base_link vs LiDAR Coordinate Frames
+**Why both are needed:**
+- `odom` provides smooth, high-frequency state for real-time control
+- `map` provides global positioning corrected against known landmarks
+- `map → odom` transform bridges the drift: as SLAM corrects global position, it adjusts the `map → odom` offset so that the robot's latest `odom → base_link` still points to the correct `map` position
 
-| Feature | base_link | LiDAR Coordinate Frame |
-|---------|-----------|------------------------|
-| **Definition** | Robot body | Sensor mounting location |
-| **Motion** | Moves with the robot | Moves with the robot |
-| **Transform** | Reference frame | Fixed relative to base_link |
-| **Data** | Robot state | Laser scan data |
+### base_link vs LiDAR Frames
+
+| Feature | base_link | front_lidar_link | rear_lidar_link |
+|---------|-----------|-----------------|-----------------|
+| **Position (relative to base_link)** | — | (0.245, 0, 0.14) | (-0.245, 0, 0.14) |
+| **Orientation** | Forward (0°) | Forward (0°) | Rear-facing (180°) |
+| **Data Published** | Robot pose (from odom) | /front/scan | /rear/scan |
+| **Transform Type** | Reference frame | Static (URDF) | Static (URDF) |
+| **Used By** | Nav2 planners, controllers | SLAM (primary scan) | Obstacle detection (if merged) |
 
 ---
 
-## TF Tree Verification
+## Coordinate Frame Transform Details
 
-### View the TF Tree
+### map → odom (Localization Correction)
 
+**Publisher:** SLAM Toolbox (mapping mode) or AMCL (localization mode)
+
+**Behavior:**
+- Updated whenever SLAM/AMCL refines the robot's global position
+- Can "jump" discretely (the transform value changes step-wise)
+- During initial mapping: SLAM Toolbox sets `map = odom` at the origin, then updates as it builds the map
+
+**Check:**
+```bash
+ros2 run tf2_ros tf2_echo map odom
+```
+
+### odom → base_link (Odometry Motion)
+
+**Publisher:** Gazebo diff drive plugin → ros_gz_bridge → /tf topic
+
+**Behavior:**
+- Continuous, smooth updates at 50 Hz
+- Derived from wheel encoder simulation in Gazebo
+- More accurate near the start, increasingly drifts over long runs
+
+**Bridge Config** ([scout_mini_gazebo.launch.py](file:///home/luoyongkang/scout_nav2_mini/src/scout_mini_dual_lidar_gazebo/launch/scout_mini_gazebo.launch.py)):
+```
+/tf@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V
+```
+
+### base_link → LiDAR (Static URDF Transforms)
+
+**Publisher:** robot_state_publisher
+
+**Behavior:**
+- Permanent, never-changing transforms
+- Defined by the URDF model's `<joint>` elements
+- Both LiDARs are fixed to the robot body (no moving joints)
+
+**Check:**
+```bash
+ros2 run tf2_ros tf2_echo base_link front_lidar_link
+ros2 run tf2_ros tf2_echo base_link rear_lidar_link
+```
+
+---
+
+## TF Tree Verification Commands
+
+### View the complete TF tree
 ```bash
 ros2 run tf2_tools view_frames
 ```
+The generated `frames.pdf` displays all connected coordinate frames.
 
-The generated `frames.pdf` should display the complete coordinate frame chain.
-
-### Check Specific Transforms
-
+### Check specific transforms
 ```bash
-# Check map → base_link transform
-ros2 run tf2_ros tf2_echo map base_link
+# Localization chain (drift correction)
+ros2 run tf2_ros tf2_echo map odom
 
-# Check odom → base_link transform
+# Odometry chain (high-frequency motion)
 ros2 run tf2_ros tf2_echo odom base_link
 
-# Check base_link → front_lidar_link transform
+# LiDAR transforms (static, URDF-defined)
 ros2 run tf2_ros tf2_echo base_link front_lidar_link
+ros2 run tf2_ros tf2_echo base_link rear_lidar_link
 ```
 
-### Verify Coordinate Frame Chain Integrity
-
+### Verify end-to-end chain integrity
 ```bash
-# The following transforms should be queryable successfully
-ros2 run tf2_ros tf2_echo map front_lidar_link
-ros2 run tf2_ros tf2_echo map rear_lidar_link
+ros2 run tf2_ros tf2_echo map front_lidar_link     # Should succeed
+ros2 run tf2_ros tf2_echo map rear_lidar_link      # Should succeed
+ros2 run tf2_ros tf2_echo odom front_lidar_link    # Should succeed
+```
+
+### Check Gazebo internal frames (if debugging)
+```bash
+ign topic -l | grep tf     # List Gazebo TF-related topics
+ign topic -i -t /tf        # Show Gazebo /tf message type
 ```
 
 ---
 
-## Common Issues
+## Common Issues and Solutions
 
 ### Issue 1: Broken Coordinate Frame Chain
 
-**Symptoms:** Unable to display lidar data or map in RViz
+**Symptoms:** 
+- RViz cannot display LaserScan or Map
+- `ros2 topic echo /map --once` returns nothing
+- `ros2 run tf2_ros tf2_echo map base_link` fails
+
+**Root Cause (this project):**
+Gazebo diff drive plugin publishes `scout_mini/odom → scout_mini/base_link` (model name prefix), while `robot_state_publisher` uses `base_link` (no prefix). Two unconnected TF sub-trees.
+
+**Solution:**
+Add static identity TF transforms: `odom → scout_mini/odom` and `scout_mini/base_link → base_link`.
 
 **Check:**
 ```bash
 ros2 run tf2_tools view_frames
+# Must show a single connected tree from map to all leaf frames
 ```
 
-**Solution:** Ensure all static TF transforms are properly configured
+### Issue 2: map and odom Mismatch
 
-### Issue 2: Mismatch Between map and odom
+**Symptoms:** Robot appears at the wrong position on the map in RViz.
 
-**Symptoms:** The robot's position in the map does not match reality
+**Cause:** AMCL localization not accurate, or SLAM has not yet established `map → odom`.
 
-**Cause:** Inaccurate AMCL localization or incorrect initial position
+**Solution:** 
+- During mapping: ensure `mode: mapping` and drive the robot in loops for loop closure.
+- During localization: provide a good initial pose estimate via RViz's "2D Pose Estimate" tool.
 
-**Solution:** Re-initialize the robot position or adjust AMCL parameters
+### Issue 3: Incorrect LiDAR Data Positioning
 
-### Issue 3: Incorrect LiDAR Data Coordinate Frame
+**Symptoms:** Laser point cloud appears offset from the robot model in RViz.
 
-**Symptoms:** Laser point cloud appears in the wrong location
+**Cause:** The `front_lidar_link` or `rear_lidar_link` static transforms have wrong values.
 
-**Cause:** Incorrect TF transform parameters or frame_id mismatch
-
-**Solution:** Check the static TF transform values and the laser data's frame_id
+**Check URDF joint positions:**
+```bash
+ros2 run tf2_ros tf2_echo base_link front_lidar_link
+# Should report translation: (0.245, 0, 0.14)
+```
 
 ---
 
 ## Acceptance Checklist
 
-- ✅ No disconnected coordinate frames
-- ✅ All coordinate frames are correctly connected to the TF tree
-- ✅ The difference between map and odom has been clearly explained
-- ✅ The relationship between base_link and LiDAR coordinate frames has been clarified
-- ✅ TF tree image has been generated (`frames.pdf`)
+- ✅ No disconnected coordinate frames — all frames connected in a single TF tree
+- ✅ `map → odom` difference clearly explained (discrete vs continuous)
+- ✅ `base_link` vs LiDAR frame relationship explained (static transforms from URDF)
+- ✅ Model prefix bridging mechanism documented
+- ✅ TF tree image generated via `ros2 run tf2_tools view_frames`
+- ✅ All end-to-end transforms verifiable (`map → front_lidar_link` works)
 
 ---
 
 ## Submitted Files
 
-- `reports/navigation_frames.md` (this report)
-- `media/screenshots/task18_tf_tree.pdf` (TF tree image)
+- `reports/navigation_frames.md` (this report, updated for Task 18)
+- `reports/frames_chinese.md` (Chinese version, updated for Task 18)
 - `TASK_LOG.md` (updated)
 - `TASK_LOG_CHINESE.md` (updated)
 
@@ -315,5 +425,4 @@ ros2 run tf2_tools view_frames
 
 ## Date
 
-2026-06-10
-```
+2026-06-12 (Task 18 — updated with actual TF tree from verified Gazebo + SLAM pipeline)

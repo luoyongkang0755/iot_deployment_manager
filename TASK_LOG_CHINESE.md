@@ -839,105 +839,89 @@ ign topic -i -t /odom
 
 ---
 
-## 任务 18 — 导航坐标系解释
+## 任务 18 — 导航坐标系解释（重做）
 
 ### 目标
-确保理解 Nav2 坐标系链以及关键坐标系之间的区别。
+确保理解 Nav2 坐标系链，包括 Task 17 调试中发现的 Gazebo 模型名前缀桥接机制。
 
-### 创建的报告
-- `reports/navigation_frames.md` - 导航坐标系的详细解释
+### 更新的报告
+- `reports/navigation_frames.md` — 综合解释（根据实际 TF 树更新）
+- `reports/frames_chinese.md` — 中文版（根据实际 TF 树更新）
 
-### 坐标系链
+### 实际 TF 树（Task 17 前缀桥接修复后）
 
 ```
-map → odom → base_link → [front_lidar_link, rear_lidar_link]
+map → odom → scout_mini/odom → scout_mini/base_link → base_link → [front_lidar_link, rear_lidar_link]
+  SLAM    静态身份变换          diff drive 插件         静态身份变换     robot_state_publisher
 ```
 
-### 关键坐标系说明
+Gazebo 自动在所有 frame ID 前添加 `scout_mini/` 前缀。两个静态身份 TF 变换桥接命名空间：
+- `odom → scout_mini/odom` — 连接 ROS 标准帧到 Gazebo 命名空间里程计帧
+- `scout_mini/base_link → base_link` — 连接 Gazebo 命名空间帧到 ROS 标准基座帧
 
-#### 1. map 坐标系（世界坐标系）
-- **定义**: 全局固定的世界坐标系
-- **原点**: 通常与地图原点或机器人初始位置对齐
-- **特点**: 
-  - 固定（不移动）
-  - 允许随时间漂移
-  - 用于长期导航
-- **用途**: 全局路径规划、地图定位
+### 各帧详解
 
-#### 2. odom 坐标系（里程计坐标系）
-- **定义**: 以机器人启动位置为原点的局部坐标系
-- **特点**:
-  - 相对于机器人启动位置
-  - 短期精度高（厘米级）
-  - 长期累积误差（漂移）
-  - 连续但可能漂移
-- **用途**: 局部路径跟踪、短期避障
+#### 1. map 帧（世界帧）
+- **原点**：地图原点（世界固定）
+- **特点**：全局固定，重定位时可能跳变，由 SLAM/AMCL 维护
+- **用途**：全局路径规划、长期导航
 
-#### 3. base_link 坐标系（机器人基座坐标系）
-- **定义**: 固定在机器人本体上的坐标系
-- **位置**: 通常位于机器人几何中心或旋转中心
-- **特点**:
-  - 随机器人移动
-  - 所有传感器和执行器的参考坐标系
-- **用途**: 传感器数据融合、运动控制
+#### 2. odom 帧（里程计帧）
+- **原点**：机器人启动位置
+- **特点**：连续平滑（50 Hz），短期精度高，长期无界漂移
+- **用途**：局部路径跟踪、实时运动控制
 
-#### 4. LiDAR 坐标系
-- **front_lidar_link**: 前置 LiDAR，相对于 base_link 位置 (x=0.245, y=0, z=0.14)
-- **rear_lidar_link**: 后置 LiDAR，相对于 base_link 位置 (x=-0.245, y=0, z=0.14)
-- **特点**: 相对于 base_link 的固定变换（来自 URDF）
+#### 3. Gazebo 前缀帧（scout_mini/odom, scout_mini/base_link）
+- **来源**：Gazebo diff drive 插件输出（带模型名前缀）
+- **特点**：零偏移身份变换连接到 ROS 标准帧
+- **目的**：连接 Gazebo 的命名空间 TF 发布到 ROS 标准命名
 
-### 关键区别对比
+#### 4. base_link 帧（机器人基座帧）
+- **位置**：机器人几何中心，离地 0.145m
+- **特点**：随机器人移动，所有 URDF 定义的传感器帧的父帧
+- **用途**：传感器融合参考、运动控制
+
+#### 5. base_footprint 帧
+- **位置**：base_link 在地面上的垂直投影（z = -0.145m）
+- **用途**：2D 导航与代价地图参考
+
+#### 6. LiDAR 帧
+- **front_lidar_link**：相对 base_link (0.245, 0, 0.14)，朝前，360° 扫描，5 Hz
+- **rear_lidar_link**：相对 base_link (-0.245, 0, 0.14)，朝后（偏航 180°），360° 扫描，5 Hz
+
+### 关键区别
 
 #### map vs odom
 
 | 特性 | map | odom |
 |------|-----|------|
-| **原点** | 固定世界点 | 机器人启动位置 |
-| **稳定性** | 全局固定 | 随机器人移动 |
-| **精度** | 长期准确 | 短期精确，长期漂移 |
-| **连续性** | 可能跳变 | 连续平滑 |
+| **原点** | 世界固定的地图原点 | 机器人启动位置 |
+| **连续性** | 不连续（可能跳变） | 连续平滑 |
+| **精度** | 长期准确（回环闭合） | 短期精确（无界漂移） |
+| **更新频率** | ~2–10 Hz（SLAM） | 50 Hz（diff drive） |
+| **发布者** | SLAM Toolbox / AMCL | Gazebo → ros_gz_bridge |
 | **用途** | 全局规划 | 局部控制 |
-| **变换** | AMCL/SLAM 计算 | 来自里程计 |
 
-#### base_link vs LiDAR 坐标系
+**为什么两者都需要**：`odom` 提供平滑、高频的运动状态。`map → odom` 变换通过调整偏移量来修正漂移，使 SLAM 修正不影响实时控制。
 
-| 特性 | base_link | LiDAR 坐标系 |
-|------|-----------|-------------|
-| **定义** | 机器人本体 | 传感器安装位置 |
-| **运动** | 随机器人移动 | 随机器人移动 |
-| **变换** | 参考坐标系 | 相对于 base_link 固定 |
-| **数据** | 机器人状态 | 激光扫描数据 |
+### 验证命令
 
-### TF 树验证
-
-**命令:**
 ```bash
-ros2 run tf2_tools view_frames
-```
-
-**生成的文件:** `media/screenshots/task18_tf_tree.pdf`
-
-**变换检查:**
-```bash
-# 检查 map → base_link 变换
-ros2 run tf2_ros tf2_echo map base_link
-
-# 检查 odom → base_link 变换
-ros2 run tf2_ros tf2_echo odom base_link
-
-# 检查 base_link → front_lidar_link 变换
-ros2 run tf2_ros tf2_echo base_link front_lidar_link
+ros2 run tf2_tools view_frames          # 查看完整 TF 树
+ros2 run tf2_ros tf2_echo map front_lidar_link   # 端到端检查
+ros2 run tf2_ros tf2_echo odom base_link         # 里程计链
+ros2 run tf2_ros tf2_echo base_link front_lidar_link  # 静态变换
 ```
 
 ### 验证结果
-- ✅ 没有断开的坐标系
-- ✅ 所有坐标系都正确连接到 TF 树
-- ✅ map 和 odom 的区别已清楚解释
-- ✅ base_link 和 LiDAR 坐标系的关系已说明
-- ✅ TF 树图像已生成
+- ✅ 没有断开的坐标系 — 从 map 到所有叶子帧单一的连通 TF 树
+- ✅ map vs odom 的区别已清楚解释（离散 vs 连续）
+- ✅ 模型名前缀桥接机制已文档化
+- ✅ LiDAR 帧位置与 URDF 一致
+- ✅ 所有端到端变换可查询
 
 ### 提交的文件
-- `reports/navigation_frames.md`（新增）
-- `media/screenshots/task18_tf_tree.pdf`（新增）
+- `reports/navigation_frames.md`（根据实际 TF 树更新）
+- `reports/frames_chinese.md`（根据实际 TF 树更新）
 - `TASK_LOG.md`（已更新）
 - `TASK_LOG_CHINESE.md`（已更新）

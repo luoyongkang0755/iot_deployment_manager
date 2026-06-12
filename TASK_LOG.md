@@ -835,52 +835,55 @@ ign topic -i -t /odom
 
 ---
 
-## Task 18 — Navigation Coordinate Frames Explanation
+## Task 18 — Navigation Coordinate Frames Explanation (Reworked)
 
 ### Objective
-Ensure understanding of the Nav2 coordinate frame chain and the differences between key frames.
+Ensure understanding of the Nav2 coordinate frame chain, including the model name prefix bridging mechanism discovered during Task 17 debugging.
 
-### Created Report
-- `reports/navigation_frames.md` - Comprehensive explanation of navigation coordinate frames
+### Updated Reports
+- `reports/navigation_frames.md` — Comprehensive explanation (updated for actual TF tree)
+- `reports/frames_chinese.md` — Chinese version (updated for actual TF tree)
 
-### Coordinate Frame Chain
+### Actual TF Tree (After Task 17 Prefix Bridge Fix)
 
 ```
-map → odom → base_link → [front_lidar_link, rear_lidar_link]
+map → odom → scout_mini/odom → scout_mini/base_link → base_link → [front_lidar_link, rear_lidar_link]
+  SLAM    static identity      diff drive plugin      static identity    robot_state_publisher
 ```
+
+Gazebo automatically prepends `scout_mini/` to all frame IDs. Two static identity TF transforms bridge the namespaces:
+- `odom → scout_mini/odom` — connects ROS standard to Gazebo-scoped odom
+- `scout_mini/base_link → base_link` — connects Gazebo-scoped to ROS standard base_link
 
 ### Key Frames Explained
 
 #### 1. map Frame (World Frame)
-- **Definition**: Global fixed world coordinate system
-- **Origin**: Typically aligned with map origin or robot's initial position
-- **Characteristics**: 
-  - Fixed (doesn't move)
-  - Allows drift over time
-  - Used for long-term navigation
-- **Usage**: Global path planning, map localization
+- **Origin**: Map origin (world-fixed)
+- **Characteristics**: Globally fixed, may jump on re-localization, maintained by SLAM/AMCL
+- **Usage**: Global path planning, long-term navigation
 
 #### 2. odom Frame (Odometry Frame)
-- **Definition**: Local coordinate system starting at robot's initial position
-- **Characteristics**:
-  - Relative to robot's starting point
-  - Short-term accurate (cm-level)
-  - Long-term drift (accumulates error)
-  - Continuous but may drift
-- **Usage**: Local path tracking, short-term obstacle avoidance
+- **Origin**: Robot's starting position
+- **Characteristics**: Continuous and smooth (50 Hz), high short-term precision, unbounded long-term drift
+- **Usage**: Local path tracking, real-time motion control
 
-#### 3. base_link Frame (Robot Body Frame)
-- **Definition**: Coordinate system fixed to the robot body
-- **Location**: Typically at robot's geometric center or rotation center
-- **Characteristics**:
-  - Moves with the robot
-  - Reference frame for all sensors and actuators
-- **Usage**: Sensor data fusion, motion control
+#### 3. Gazebo Prefix Frames (scout_mini/odom, scout_mini/base_link)
+- **Origin**: Gazebo diff drive plugin output with model name prefix
+- **Characteristics**: Zero-offset identity transforms bridge to ROS standard frames
+- **Purpose**: Connect Gazebo's name-scoped TF publishing to ROS standard naming
 
-#### 4. LiDAR Frames
-- **front_lidar_link**: Front LiDAR sensor at (x=0.245, y=0, z=0.14) relative to base_link
-- **rear_lidar_link**: Rear LiDAR sensor at (x=-0.245, y=0, z=0.14) relative to base_link
-- **Characteristics**: Fixed transform from base_link (from URDF)
+#### 4. base_link Frame (Robot Body Frame)
+- **Location**: Robot geometric center, 0.145m above ground
+- **Characteristics**: Moves with robot, parent of all URDF-defined sensor frames
+- **Usage**: Sensor fusion reference, motion control
+
+#### 5. base_footprint Frame
+- **Location**: Vertical projection of base_link onto ground (z = -0.145m)
+- **Usage**: 2D navigation and costmap reference
+
+#### 6. LiDAR Frames
+- **front_lidar_link**: (0.245, 0, 0.14) relative to base_link, forward-facing, 360° scan, 5 Hz
+- **rear_lidar_link**: (-0.245, 0, 0.14) relative to base_link, rear-facing (180° yaw), 360° scan, 5 Hz
 
 ### Key Differences
 
@@ -888,52 +891,33 @@ map → odom → base_link → [front_lidar_link, rear_lidar_link]
 
 | Characteristic | map | odom |
 |----------------|-----|------|
-| **Origin** | Fixed world point | Robot start position |
-| **Stability** | Globally fixed | Moves with robot |
-| **Accuracy** | Long-term accurate | Short-term precise, long-term drift |
-| **Continuity** | May jump | Continuous smooth |
+| **Origin** | World-fixed map origin | Robot's start position |
+| **Continuity** | Discontinuous (may jump) | Continuous and smooth |
+| **Accuracy** | Long-term (loop closure) | Short-term (drifts unbounded) |
+| **Update Rate** | ~2–10 Hz (SLAM) | 50 Hz (diff drive) |
+| **Publisher** | SLAM Toolbox / AMCL | Gazebo → ros_gz_bridge |
 | **Usage** | Global planning | Local control |
-| **Transform** | Computed by AMCL/SLAM | From odometry |
 
-#### base_link vs LiDAR Frames
+**Why both needed**: `odom` provides smooth, high-frequency state. `map → odom` transform adjusts the drift offset so SLAM corrections don't disrupt live control.
 
-| Characteristic | base_link | LiDAR frames |
-|----------------|-----------|--------------|
-| **Definition** | Robot body | Sensor mounting position |
-| **Movement** | Moves with robot | Moves with robot |
-| **Transform** | Reference frame | Fixed relative to base_link |
-| **Data** | Robot state | Laser scan data |
+### Verification Commands
 
-### TF Tree Verification
-
-**Command:**
 ```bash
-ros2 run tf2_tools view_frames
-```
-
-**Generated file:** `media/screenshots/task18_tf_tree.pdf`
-
-**Transform Checks:**
-```bash
-# Check map → base_link transform
-ros2 run tf2_ros tf2_echo map base_link
-
-# Check odom → base_link transform
-ros2 run tf2_ros tf2_echo odom base_link
-
-# Check base_link → front_lidar_link transform
-ros2 run tf2_ros tf2_echo base_link front_lidar_link
+ros2 run tf2_tools view_frames          # Full TF tree
+ros2 run tf2_ros tf2_echo map front_lidar_link   # End-to-end check
+ros2 run tf2_ros tf2_echo odom base_link         # Odometry chain
+ros2 run tf2_ros tf2_echo base_link front_lidar_link  # Static transform
 ```
 
 ### Verification Results
-- ✅ No disconnected coordinate frames
-- ✅ All frames properly connected to TF tree
-- ✅ Difference between map and odom clearly explained
-- ✅ Relationship between base_link and LiDAR frames explained
-- ✅ TF tree image generated
+- ✅ No disconnected frames — single connected TF tree from map to all leaves
+- ✅ map vs odom clearly explained (discrete vs continuous)
+- ✅ Model prefix bridging mechanism documented
+- ✅ LiDAR frame positions verified against URDF
+- ✅ All end-to-end transforms queryable
 
 ### Committed Files
-- `reports/navigation_frames.md` (new)
-- `media/screenshots/task18_tf_tree.pdf` (new)
+- `reports/navigation_frames.md` (updated for actual TF tree)
+- `reports/frames_chinese.md` (updated for actual TF tree)
 - `TASK_LOG.md` (updated)
 - `TASK_LOG_CHINESE.md` (updated)
