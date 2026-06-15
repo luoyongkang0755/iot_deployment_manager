@@ -19,6 +19,8 @@ install(DIRECTORY launch worlds params config urdf rviz
 )
 
 install(PROGRAMS
+  src/tf_static_relay.py
+  src/tf_to_odom.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

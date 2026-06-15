@@ -4,10 +4,12 @@ import launch_ros
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.conditions import IfCondition
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import FindExecutable, PathJoinSubstitution, LaunchConfiguration
 from launch.substitutions import Command, EnvironmentVariable
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
@@ -21,6 +23,9 @@ def generate_launch_description():
     model = LaunchConfiguration('model')
     use_sim_time = LaunchConfiguration('use_sim_time')
     verbose = LaunchConfiguration('verbose')
+    use_rviz = LaunchConfiguration('use_rviz')
+    rviz_config = LaunchConfiguration('rviz_config')
+    spawn_yaw = LaunchConfiguration('spawn_yaw')
 
     # Declare launch arguments
     declare_world_cmd = DeclareLaunchArgument(
@@ -43,6 +48,21 @@ def generate_launch_description():
         default_value='false',
         description='Enable verbose output')
 
+    declare_use_rviz_cmd = DeclareLaunchArgument(
+        'use_rviz',
+        default_value='true',
+        description='Launch RViz2 for visualization')
+
+    declare_rviz_config_cmd = DeclareLaunchArgument(
+        'rviz_config',
+        default_value=os.path.join(pkg_scout_gazebo, 'rviz', 'display.rviz'),
+        description='Path to RViz configuration file')
+
+    declare_spawn_yaw_cmd = DeclareLaunchArgument(
+        'spawn_yaw',
+        default_value='3.14159',
+        description='Initial yaw angle (radians) for robot spawn')
+
     # Get URDF via xacro with mesh_prefix parameter
     # Use file:// URI for Gazebo compatibility
     robot_description_content = Command([
@@ -52,7 +72,7 @@ def generate_launch_description():
         ' mesh_prefix:=file://' + pkg_scout_description,
     ])
 
-    robot_description = {'robot_description': robot_description_content}
+    robot_description = {'robot_description': ParameterValue(robot_description_content, value_type=str)}
 
     # Robot State Publisher - publishes static TFs from URDF
     node_robot_state_publisher = Node(
@@ -81,6 +101,7 @@ def generate_launch_description():
             '-x', '0.0',
             '-y', '0.0',
             '-z', '0.205',  # wheel_vertical_offset(0.060) + wheel_radius(0.145)
+            '-Y', spawn_yaw,
         ],
         output='screen')
 
@@ -91,54 +112,70 @@ def generate_launch_description():
         executable='parameter_bridge',
         name='gz_bridge',
         output='screen',
-        parameters=[{'qos_overrides./front/scan.subscription.reliability': 'best_effort',
-                     'qos_overrides./rear/scan.subscription.reliability': 'best_effort'}],
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'qos_overrides./front/scan.subscription.reliability': 'best_effort',
+            'qos_overrides./rear/scan.subscription.reliability': 'best_effort',
+        }],
         arguments=[
+            '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
-            '/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
-            '/tf@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V',
-            '/joint_states@sensor_msgs/msg/JointState[ignition.msgs.Model',
+            '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
+            '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
+            '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
             '/front/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
             '/rear/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
         ])
 
     # Static TF publisher - maps Gazebo sensor frame to URDF frame
-    # Gazebo automatically adds model name prefix to sensor frame_id
-    # Laser data is in frame: scout_mini/base_link/front_lidar_sensor
-    # URDF frame is: front_lidar_link
+    # Gazebo sensors are placed at the URDF link position (<pose>0 0 0 0 0 0</pose>),
+    # so the static TF should be identity (0,0,0,0,0,0). The Gazebo frame_id
+    # "scout_mini/base_link/front_lidar_sensor" is at the same position as
+    # the URDF frame "front_lidar_link".
     front_lidar_static_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='front_lidar_static_tf',
+        parameters=[{'use_sim_time': use_sim_time}],
         arguments=[
-            '0.245', '0', '0.14',  # xyz (position of sensor relative to base_link)
-            '0', '0', '0',         # rpy
+            '0', '0', '0',  # identity - sensor IS at link position
+            '0', '0', '0',  # identity rotation
             'front_lidar_link',                    # parent frame (URDF frame)
             'scout_mini/base_link/front_lidar_sensor'  # child frame (Gazebo frame)
         ]
     )
 
-    # Static TF publisher for rear lidar
     rear_lidar_static_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='rear_lidar_static_tf',
+        parameters=[{'use_sim_time': use_sim_time}],
         arguments=[
-            '-0.245', '0', '0.14',  # xyz (position of sensor relative to base_link)
-            '0', '0', '0',          # rpy
+            '0', '0', '0',  # identity - sensor IS at link position
+            '0', '0', '0',  # identity rotation
             'rear_lidar_link',                     # parent frame (URDF frame)
             'scout_mini/base_link/rear_lidar_sensor'  # child frame (Gazebo frame)
         ]
     )
 
+    # Bridge /tf_static -> /tf so slam_toolbox gets all transforms on one topic
+    tf_static_relay = Node(
+        package='scout_mini_dual_lidar_gazebo',
+        executable='tf_static_relay.py',
+        name='tf_static_relay',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}],
+    )
+
     # Bridge Gazebo model name prefix to ROS standard frame names
-    # Gazebo diff drive publishes: scout_mini/odom -> scout_mini/base_link
-    # robot_state_publisher publishes: base_link -> front_lidar_link, etc.
-    # Connect the two trees: map -> odom -> scout_mini/odom -> scout_mini/base_link -> base_link -> sensors
+    # DiffDrive publishes: scout_mini/odom -> scout_mini/base_link (robot_base_frame=base_link)
+    # robot_state_publisher publishes: base_link -> base_footprint (fixed joint from URDF)
+    # Full TF chain: odom -> scout_mini/odom -> scout_mini/base_link -> base_link -> base_footprint -> ...
     model_prefix_tf_odom = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='model_prefix_tf_odom',
+        parameters=[{'use_sim_time': use_sim_time}],
         arguments=[
             '0', '0', '0', '0', '0', '0',  # identity
             'odom',                          # parent (ROS standard)
@@ -146,16 +183,27 @@ def generate_launch_description():
         ]
     )
 
-    model_prefix_tf_base = Node(
+    model_prefix_tf_base_link = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
-        name='model_prefix_tf_base',
+        name='model_prefix_tf_base_link',
+        parameters=[{'use_sim_time': use_sim_time}],
         arguments=[
-            '0', '0', '0', '0', '0', '0',  # identity
-            'scout_mini/base_link',         # parent (Gazebo prefixed)
-            'base_link'                      # child (ROS standard)
+            '0', '0', '0', '0', '0', '0',   # identity
+            'scout_mini/base_link',          # parent (Gazebo DiffDrive output)
+            'base_link'                      # child (URDF root frame)
         ]
     )
+
+    # RViz2 - visualization (optional, controlled by use_rviz argument)
+    node_rviz = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}],
+        arguments=['-d', rviz_config],
+        condition=IfCondition(use_rviz))
 
     # Set environment variables for Gazebo resource paths
     # Gazebo uses model:// URI which looks for model_name/meshes/... in resource paths
@@ -190,6 +238,9 @@ def generate_launch_description():
     ld.add_action(declare_model_cmd)
     ld.add_action(declare_use_sim_time_cmd)
     ld.add_action(declare_verbose_cmd)
+    ld.add_action(declare_use_rviz_cmd)
+    ld.add_action(declare_rviz_config_cmd)
+    ld.add_action(declare_spawn_yaw_cmd)
 
     # Add the nodes to the launch description
     ld.add_action(gazebo)
@@ -199,7 +250,9 @@ def generate_launch_description():
     ld.add_action(front_lidar_static_tf)
     ld.add_action(rear_lidar_static_tf)
     ld.add_action(model_prefix_tf_odom)
-    ld.add_action(model_prefix_tf_base)
+    ld.add_action(model_prefix_tf_base_link)
+    ld.add_action(tf_static_relay)
+    ld.add_action(node_rviz)
 
 
     return ld

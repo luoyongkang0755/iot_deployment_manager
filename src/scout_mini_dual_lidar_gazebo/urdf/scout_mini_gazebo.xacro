@@ -28,7 +28,7 @@
     <!-- Base link -->
     <link name="base_link">
         <visual>
-            <origin xyz="0 0 0" rpy="0 0 0" />
+            <origin xyz="0 0 0" rpy="0 0 3.14159" />
             <geometry>
                 <mesh filename="${mesh_prefix}/meshes/base_link.dae" />
             </geometry>
@@ -50,7 +50,7 @@
     <link name="base_footprint"/>
 
     <joint name="base_footprint_joint" type="fixed">
-        <origin xyz="0 0 ${-wheel_radius}" rpy="0 0 0" />
+        <origin xyz="0 0 ${wheel_vertical_offset - wheel_radius}" rpy="0 0 0" />
         <parent link="base_link" />
         <child link="base_footprint" />
     </joint>
@@ -59,7 +59,7 @@
         <inertial>
             <mass value="25" />
             <origin xyz="0.0 0.0 0.0" />
-            <inertia ixx="1.0" ixy="0" ixz="0" iyy="2.0" iyz="0" izz="1.5" />
+            <inertia ixx="0.323" ixy="0" ixz="0" iyy="0.948" iyz="0" izz="1.135" />
         </inertial>
     </link>
 
@@ -69,18 +69,20 @@
         <child link="inertial_link" />
     </joint>
 
-    <!-- Scout Mini wheel macros -->
-    <xacro:scout_wheel_type1 wheel_prefix="front_right">
-        <origin xyz="${wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="3.14 0 0" />
+    <!-- 4-wheel direct drive (no mimic) -->
+    <!-- All wheels share same axis "0 -1 0" (Y-axis). -->
+    <!-- collision_rpy rotates cylinder from vertical to horizontal to match wheel shape. -->
+    <xacro:scout_wheel_type1 wheel_prefix="front_left" axis_xyz="0 -1 0" collision_rpy="1.5708 0 0">
+        <origin xyz="${wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0"/>
     </xacro:scout_wheel_type1>
-    <xacro:scout_wheel_type2 wheel_prefix="front_left">
-        <origin xyz="${wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    <xacro:scout_wheel_type2 wheel_prefix="front_right" axis_xyz="0 -1 0" collision_rpy="1.5708 0 0">
+        <origin xyz="${wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="0 0 0"/>
     </xacro:scout_wheel_type2>
-    <xacro:scout_wheel_type1 wheel_prefix="rear_left">
-        <origin xyz="${-wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0" />
+    <xacro:scout_wheel_type1 wheel_prefix="rear_left" axis_xyz="0 -1 0" collision_rpy="1.5708 0 0">
+        <origin xyz="${-wheelbase/2} ${track/2} ${wheel_vertical_offset}" rpy="0 0 0"/>
     </xacro:scout_wheel_type1>
-    <xacro:scout_wheel_type2 wheel_prefix="rear_right">
-        <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="3.14 0 0" />
+    <xacro:scout_wheel_type2 wheel_prefix="rear_right" axis_xyz="0 -1 0" collision_rpy="1.5708 0 0">
+        <origin xyz="${-wheelbase/2} ${-track/2} ${wheel_vertical_offset}" rpy="0 0 0"/>
     </xacro:scout_wheel_type2>
 
     <!-- Front LiDAR (RS-AIRY) -->
@@ -146,18 +148,22 @@
     <!-- Gazebo differential drive plugin -->
     <gazebo>
         <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
-            <left_joint>rear_left_wheel</left_joint>
-            <right_joint>rear_right_wheel</right_joint>
+            <left_joint>front_right_wheel</left_joint>
+            <left_joint>rear_right_wheel</left_joint>
+            <right_joint>front_left_wheel</right_joint>
+            <right_joint>rear_left_wheel</right_joint>
             <wheel_separation>${track}</wheel_separation>
             <wheel_radius>${wheel_radius}</wheel_radius>
+            <max_wheel_torque>20</max_wheel_torque>
+            <max_linear_acceleration>1.0</max_linear_acceleration>
             <topic>/cmd_vel</topic>
             <odom_topic>/odom</odom_topic>
             <tf_topic>/tf</tf_topic>
             <odom_publish_frequency>50</odom_publish_frequency>
             <odom_frame>odom</odom_frame>
-            <robot_base_frame>base_footprint</robot_base_frame>
-            <linear_velocity_limit>2.0</linear_velocity_limit>
-            <angular_velocity_limit>3.0</angular_velocity_limit>
+            <robot_base_frame>base_link</robot_base_frame>
+            <max_linear_velocity>2.0</max_linear_velocity>
+            <max_angular_velocity>3.0</max_angular_velocity>
         </plugin>
     </gazebo>
 
