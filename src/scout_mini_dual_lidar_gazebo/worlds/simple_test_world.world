@@ -1,12 +1,19 @@
 <?xml version="1.0" ?>
-<sdf version="1.8">
+<sdf version="1.9">
   <world name="simple_test_world">
-    <!-- Physics settings -->
+    <!-- Physics: values from ugv_gazebo_sim/scout/scout_gazebo_sim/worlds/weston_robot_empty.world -->
     <physics type="ode">
-      <real_time_update_rate>1000</real_time_update_rate>
-      <max_step_size>0.001</max_step_size>
-      <real_time_factor>1.0</real_time_factor>
-      <gravity>0 0 -9.81</gravity>
+      <max_step_size>0.005</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>200</real_time_update_rate>
+      <gravity>0 0 -9.8</gravity>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>30</iters>
+          <sor>1.0</sor>
+        </solver>
+      </ode>
     </physics>
 
     <!-- Scene settings -->
@@ -22,7 +29,9 @@
       <rendering>false</rendering>
       <sensor_update_rate>5</sensor_update_rate>
     </plugin>
-
+    <!-- IMU system plugin -->
+    <plugin filename="ignition-gazebo-imu-system" name="ignition::gazebo::systems::Imu">
+    </plugin> 
     <!-- Scene Broadcaster for GUI rendering -->
     <plugin filename="ignition-gazebo-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
     </plugin>
@@ -38,7 +47,7 @@
     <!-- Physics system - required for diff drive to work -->
     <plugin filename="ignition-gazebo-physics-system" name="gz::sim::systems::Physics">
     </plugin>
-
+    
     <!-- Ground plane -->
     <model name="ground_plane">
       <static>true</static>
@@ -55,12 +64,15 @@
             <friction>
               <ode>
                 <mu>100</mu>
-                <ode2>
-                  <mu2>100</mu2>
-                </ode2>
+                <mu2>50</mu2>
               </ode>
             </friction>
+            <bounce/>
+            <contact>
+              <ode/>
+            </contact>
           </surface>
+          <max_contacts>10</max_contacts>
         </collision>
         <visual name="ground_plane_visual">
           <geometry>
@@ -75,6 +87,13 @@
             <specular>0 0 0 1</specular>
           </material>
         </visual>
+        <velocity_decay>
+          <linear>0</linear>
+          <angular>0</angular>
+        </velocity_decay>
+        <self_collide>0</self_collide>
+        <kinematic>0</kinematic>
+        <gravity>1</gravity>
       </link>
     </model>
 
@@ -223,31 +242,7 @@
       </link>
     </model>
 
-    <!-- Obstacle Box 2 - Left Side (Green) -->
-    <model name="obstacle_box_2">
-      <static>true</static>
-      <pose>0.0 4.0 0.3 0 0 0</pose>
-      <link name="obstacle_box_2_link">
-        <collision name="obstacle_box_2_collision">
-          <geometry>
-            <box>
-              <size>0.8 0.8 0.6</size>
-            </box>
-          </geometry>
-        </collision>
-        <visual name="obstacle_box_2_visual">
-          <geometry>
-            <box>
-              <size>0.8 0.8 0.6</size>
-            </box>
-          </geometry>
-          <material>
-            <ambient>0.2 0.8 0.2 1</ambient>
-            <diffuse>0.2 0.8 0.2 1</diffuse>
-          </material>
-        </visual>
-      </link>
-    </model>
+  
 
     <!-- Obstacle Box 3 - Right Side (Blue) -->
     <model name="obstacle_box_3">
@@ -327,31 +322,7 @@
       </link>
     </model>
 
-    <!-- Obstacle Box 6 - Rear Right (Orange) -->
-    <model name="obstacle_box_6">
-      <static>true</static>
-      <pose>-3.0 -3.0 0.5 0 0 0</pose>
-      <link name="obstacle_box_6_link">
-        <collision name="obstacle_box_6_collision">
-          <geometry>
-            <box>
-              <size>0.9 0.9 1.0</size>
-            </box>
-          </geometry>
-        </collision>
-        <visual name="obstacle_box_6_visual">
-          <geometry>
-            <box>
-              <size>0.9 0.9 1.0</size>
-            </box>
-          </geometry>
-          <material>
-            <ambient>1.0 0.5 0.2 1</ambient>
-            <diffuse>1.0 0.5 0.2 1</diffuse>
-          </material>
-        </visual>
-      </link>
-    </model>
+
 
     <!-- Navigation Waypoint Marker 1 -->
     <model name="waypoint_1">

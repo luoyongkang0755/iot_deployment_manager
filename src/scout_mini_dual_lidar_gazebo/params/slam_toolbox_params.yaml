@@ -1,4 +1,5 @@
-# slam_toolbox_scout.yaml
+# slam_toolbox params — dual lidar with merged 360° scan
+# Strategy: LiDAR 30Hz + aggressive scan matching to correct odometry drift
 slam_toolbox:
   ros__parameters:
     # Plugin params
@@ -10,76 +11,86 @@ slam_toolbox:
     ceres_loss_function: HUBER_LOSS
 
     # ROS Parameters
-    odom_frame: odom
+    odom_frame: odom_corrected
     map_frame: map
     base_frame: base_link
     transform_timeout: 0.5
     transform_tolerance: 0.1
-    scan_topic: /front/scan
+    scan_topic: /merged/scan
     mode: mapping
     use_scan_matching: true
     use_scan_barycenter: true
-    
-    # 关键：增加扫描频率，更密集的关键帧
-    minimum_time_interval: 0.1   # 从 0.25 降低
-    transform_publish_period: 0.02
-    
-    # 关键：降低触发阈值，更频繁扫描匹配
-    minimum_travel_distance: 0.2
-    minimum_travel_heading: 0.3
+
+    # Keyframe / correction frequency
+    # Increased to reduce ghosting — fewer keyframes = less duplicated walls
+    minimum_time_interval: 0.3
+    transform_publish_period: 0.1
+    minimum_travel_distance: 2.0
+    minimum_travel_heading: 0.25
     max_cached_frames: 10000
-    
-    # 关键：里程计噪声参数 —— 根据你的物理滑移调大！
-    srr: 0.1      # 旋转误差 → 10倍
-    srt: 0.2      # 旋转→平移 → 10倍
-    str: 0.1      # 平移→旋转 → 10倍
-    stt: 0.2      # 平移误差 → 10倍
-    
-    # 关键：放宽闭环检测
-    loop_detector_search_radius: 5.0        # 从 3.0 扩大搜索范围
-    loop_detector_minimum_loop_closures: 1
-    loop_detector_max_candidates: 20        # 增加候选
-    loop_closure_consistency_check: 1        # 从 3 放宽
-    loop_closure_min_score: 0.5             # 从 0.7 降低
-    
-    # GMapping Parameters
+    map_update_interval: 1.0
+
+    # Odometry noise — higher = trust scan matching more, lower = trust odom more
+    # With frictionless model, odometry may slip; let SLAM correct via LiDAR
+    srr: 0.02
+    srt: 0.04
+    str: 0.02
+    stt: 0.04
+
+    # Loop closure — enabled to fix odometry drift and keep corners square
+    do_loop_closing: true
+    loop_search_maximum_distance: 8.0
+    loop_match_minimum_chain_size: 10
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+    loop_closure_association_radius: 2.0
+    loop_closure_maximum_scan_distance: 10.0
+    loop_closure_minimum_scan_count: 20
+
+    # Scan matching — high precision
     max_range: 25.0
-    minimum_score: 20.0        # 从 30 降低，更容易匹配
-    sigma: 0.05
+    minimum_score: 15.0
+    sigma: 0.02
     kernel_size: 1
-    lstep: 0.05
-    astep: 0.05
-    iterations: 10             # 从 5 增加，优化更充分
-    lsigma: 0.075
+    lstep: 0.01
+    astep: 0.01
+    iterations: 20
+    lsigma: 0.04
     ogain: 3.0
     lskip: 0
-    linear_update: 0.2          # 从 0.5 降低
-    angular_update: 0.1          # 从 0.2 降低
-    temporal_update: 1.0         # 从 3.0 降低
+    linear_update: 0.5
+    angular_update: 0.08
+    temporal_update: 1.0
     resample_threshold: 0.5
-    particles: 50               # 从 30 增加
-    
-    # 地图范围
+    particles: 30
+    correlation_search_space_dimension: 0.3
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.03
+
+    # Map range
     xmin: -30.0
     xmax: 30.0
     ymin: -30.0
     ymax: 30.0
     delta: 0.05
-    occ_thresh: 0.25
+    occ_thresh: 0.35
     max_laser_range: 25.0
-    
+
     # Map Saving
     map_resolution: 0.05
     map_save_period: 60.0
     map_name: map
-    
-    # Debug
-    debug_logging: true         # 临时开启，看闭环检测日志
-    enable_interactive_mode: true  # 开启手动闭环
-    
+
+    # Interactive mode
+    debug_logging: true
+    enable_interactive_mode: true
+
     # QoS
     qos_overrides:
-      /front/scan:
+      /merged/scan:
         subscription:
           reliability: best_effort
           durability: volatile

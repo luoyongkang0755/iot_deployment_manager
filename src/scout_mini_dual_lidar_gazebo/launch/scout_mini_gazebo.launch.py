@@ -91,7 +91,7 @@ def generate_launch_description():
     )
 
     # Spawn robot in Gazebo using ros_gz_sim
-    # z = |wheel_vertical_offset| + wheel_radius = 0.060 + 0.145 = 0.205m for scout_mini
+    # z = |wheel_vertical_offset| + wheel_radius = 0.100998 + 0.080 = 0.181m
     spawn_entity = Node(
         package='ros_gz_sim',
         executable='create',
@@ -100,7 +100,7 @@ def generate_launch_description():
             '-topic', 'robot_description',
             '-x', '0.0',
             '-y', '0.0',
-            '-z', '0.205',  # wheel_vertical_offset(0.060) + wheel_radius(0.145)
+            '-z', '0.181',  # |wheel_vertical_offset| + wheel_radius = 0.100998 + 0.080
             '-Y', spawn_yaw,
         ],
         output='screen')
@@ -123,6 +123,7 @@ def generate_launch_description():
             '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
             '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
             '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
+            '/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
             '/front/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
             '/rear/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
         ])
@@ -136,63 +137,64 @@ def generate_launch_description():
         package='tf2_ros',
         executable='static_transform_publisher',
         name='front_lidar_static_tf',
-        parameters=[{'use_sim_time': use_sim_time}],
         arguments=[
             '0', '0', '0',  # identity - sensor IS at link position
             '0', '0', '0',  # identity rotation
             'front_lidar_link',                    # parent frame (URDF frame)
             'scout_mini/base_link/front_lidar_sensor'  # child frame (Gazebo frame)
-        ]
+        ],
+        parameters=[{'use_sim_time': use_sim_time}],
     )
 
     rear_lidar_static_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='rear_lidar_static_tf',
-        parameters=[{'use_sim_time': use_sim_time}],
         arguments=[
             '0', '0', '0',  # identity - sensor IS at link position
             '0', '0', '0',  # identity rotation
             'rear_lidar_link',                     # parent frame (URDF frame)
             'scout_mini/base_link/rear_lidar_sensor'  # child frame (Gazebo frame)
-        ]
-    )
-
-    # Bridge /tf_static -> /tf so slam_toolbox gets all transforms on one topic
-    tf_static_relay = Node(
-        package='scout_mini_dual_lidar_gazebo',
-        executable='tf_static_relay.py',
-        name='tf_static_relay',
-        output='screen',
+        ],
         parameters=[{'use_sim_time': use_sim_time}],
     )
 
+
+
     # Bridge Gazebo model name prefix to ROS standard frame names
-    # DiffDrive publishes: scout_mini/odom -> scout_mini/base_link (robot_base_frame=base_link)
-    # robot_state_publisher publishes: base_link -> base_footprint (fixed joint from URDF)
-    # Full TF chain: odom -> scout_mini/odom -> scout_mini/base_link -> base_link -> base_footprint -> ...
     model_prefix_tf_odom = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='model_prefix_tf_odom',
+        arguments=['0', '0', '0', '0', '0', '0', 'odom', 'scout_mini/odom'],
         parameters=[{'use_sim_time': use_sim_time}],
-        arguments=[
-            '0', '0', '0', '0', '0', '0',  # identity
-            'odom',                          # parent (ROS standard)
-            'scout_mini/odom'               # child (Gazebo prefixed)
-        ]
     )
 
     model_prefix_tf_base_link = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='model_prefix_tf_base_link',
+        arguments=['0', '0', '0', '0', '0', '0', 'scout_mini/base_link', 'base_link'],
         parameters=[{'use_sim_time': use_sim_time}],
-        arguments=[
-            '0', '0', '0', '0', '0', '0',   # identity
-            'scout_mini/base_link',          # parent (Gazebo DiffDrive output)
-            'base_link'                      # child (URDF root frame)
-        ]
+    )
+
+    # IMU-corrected odometry — replaces DiffDrive angular with IMU gyro
+    # Fixes skid-steer rotation drift in odometry
+    imu_odom_corrector = Node(
+        package='scout_mini_dual_lidar_gazebo',
+        executable='imu_odom_corrector.py',
+        name='imu_odom_corrector',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}],
+    )
+
+    # Merge front + rear lidar scans into 360° scan for SLAM
+    laser_merger = Node(
+        package='scout_mini_dual_lidar_gazebo',
+        executable='laser_merger.py',
+        name='laser_merger',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}],
     )
 
     # RViz2 - visualization (optional, controlled by use_rviz argument)
@@ -251,7 +253,8 @@ def generate_launch_description():
     ld.add_action(rear_lidar_static_tf)
     ld.add_action(model_prefix_tf_odom)
     ld.add_action(model_prefix_tf_base_link)
-    ld.add_action(tf_static_relay)
+    ld.add_action(imu_odom_corrector)
+    ld.add_action(laser_merger)
     ld.add_action(node_rviz)
 
 

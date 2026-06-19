@@ -13,6 +13,7 @@ find_package(rclpy REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(tf2_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 install(DIRECTORY launch worlds params config urdf rviz
   DESTINATION share/${PROJECT_NAME}/
@@ -21,6 +22,9 @@ install(DIRECTORY launch worlds params config urdf rviz
 install(PROGRAMS
   src/tf_static_relay.py
   src/tf_to_odom.py
+  src/laser_merger.py
+  src/auto_path_driver.py
+  src/imu_odom_corrector.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
