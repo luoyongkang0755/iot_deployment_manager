@@ -920,7 +920,7 @@ ros2 run tf2_ros tf2_echo base_link front_lidar_link  # Static transform
 - `reports/navigation_frames.md` (updated for actual TF tree)
 - `reports/frames_chinese.md` (updated for actual TF tree)
 - `TASK_LOG.md` (updated)
-  - `TASK_LOG_CHINESE.md` (updated)
+- `TASK_LOG_CHINESE.md` (updated)
 
 ---
 ## Task 19 — Minimal Nav2 Launch
@@ -991,3 +991,55 @@ ros2 topic list                   # /map, /cmd_vel, /plan, /local_plan, etc.
 - `CMakeLists.txt` (updated — added config dir)
 - `TASK_LOG.md` (updated)
 - `TASK_LOG_CHINESE.md` (updated)
+
+
+---
+
+## Task 22 — Send Three Nav2 Goal Points
+
+### Objective
+Evaluate navigation behavior by sending at least three goal poses and documenting results.
+
+### Files Created
+- `reports/nav2_three_goal_results.md` — Test report with results table
+- `src/send_nav2_goals.py` — Script to send three Nav2 goals sequentially
+
+### How to Run
+
+```bash
+# Terminal 1: Launch Gazebo + Nav2
+ros2 launch scout_mini_dual_lidar_gazebo nav2_launch.py
+
+# Terminal 2 (after Nav2 is fully up): Send three goals
+ros2 run scout_mini_dual_lidar_gazebo send_nav2_goals.py
+```
+
+### Script Behavior
+The `send_nav2_goals.py` script:
+1. Sets the initial pose for AMCL localization
+2. Waits 5 seconds for AMCL to converge
+3. Sends Goal 1, waits for result, records success/failure + elapsed time
+4. Sends Goal 2, same process
+5. Sends Goal 3, same process
+6. Prints a formatted summary table of all results
+
+### Default Goal Points
+| Goal | Position (x, y) | Description |
+|------|------------------|-------------|
+| 1 | (2.0, 0.0) | Forward 2m along +X |
+| 2 | (-2.0, 2.0) | Navigate to quadrant II |
+| 3 | (2.0, -2.0) | Navigate to quadrant IV |
+
+**To modify goals**, edit the `GOALS` list at the top of `send_nav2_goals.py`.
+
+### Evidence Required
+- Video showing all three goal points (or three short videos)
+- RViz2 screenshot for each goal point
+- Nav2 terminal logs
+- Filled-in `reports/nav2_three_goal_results.md`
+
+### Submitted Files
+- `reports/nav2_three_goal_results.md` (new)
+- `src/send_nav2_goals.py` (new)
+- `CMakeLists.txt` (updated)
+- `TASK_LOG.md` (updated)

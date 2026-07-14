@@ -1,0 +1,42 @@
+[parameter_bridge-4] [INFO] [1784046937.638033057] [gz_bridge]: Passing message from ROS geometry_msgs/msg/Twist to Gazebo gz.msgs.Twist (showing msg only once per type)
+[controller_server-12] [INFO] [1784046938.677241642] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046939.727249067] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046940.727240292] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046941.777244770] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046942.031295825] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1784046942.065413878] [bt_navigator]: Goal succeeded
+[bt_navigator-14] [INFO] [1784046945.072791021] [bt_navigator]: Begin navigating from current location (1.77, -0.02) to (-2.00, 2.00)
+[controller_server-12] [INFO] [1784046945.093639197] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-12] [INFO] [1784046946.144084410] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046947.194073909] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046948.194085772] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046949.244098657] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046950.244073481] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046951.294094610] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046952.344096107] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046953.344083769] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046954.394071461] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046955.394081560] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046956.444088177] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046957.494071941] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046958.494068669] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046959.544082245] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046959.800998001] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1784046959.833234686] [bt_navigator]: Goal succeeded
+[bt_navigator-14] [INFO] [1784046962.839769939] [bt_navigator]: Begin navigating from current location (-1.94, 1.95) to (2.00, -2.00)
+[controller_server-12] [INFO] [1784046962.860478789] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-12] [INFO] [1784046963.910764911] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046964.960771247] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046965.960755597] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046967.010753795] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046968.010755218] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046969.060742283] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046970.110758782] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046971.110750113] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046972.160752660] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046973.160738058] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046974.210747423] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046975.260748912] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046976.260744416] [controller_server]: Passing new path to controller.
+[controller_server-12] [INFO] [1784046976.718655878] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1784046976.750200580] [bt_navigator]: Goal succeeded
