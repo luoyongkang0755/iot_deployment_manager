@@ -15,6 +15,7 @@
   <build_depend>rclpy</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>tf2_msgs</build_depend>
+  <build_depend>tf2_ros</build_depend>
   <build_depend>nav_msgs</build_depend>
   <build_depend>sensor_msgs</build_depend>
   <build_depend>slam_toolbox</build_depend>
@@ -29,6 +30,7 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>tf2_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
 

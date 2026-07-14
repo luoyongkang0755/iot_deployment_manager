@@ -120,61 +120,25 @@ def generate_launch_description():
         arguments=[
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
-            '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
-            '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
+            '/odom_raw@nav_msgs/msg/Odometry[gz.msgs.Odometry',
             '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
             '/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
             '/front/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
             '/rear/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
         ])
 
-    # Static TF publisher - maps Gazebo sensor frame to URDF frame
-    # Gazebo sensors are placed at the URDF link position (<pose>0 0 0 0 0 0</pose>),
-    # so the static TF should be identity (0,0,0,0,0,0). The Gazebo frame_id
-    # "scout_mini/base_link/front_lidar_sensor" is at the same position as
-    # the URDF frame "front_lidar_link".
-    front_lidar_static_tf = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='front_lidar_static_tf',
-        arguments=[
-            '0', '0', '0',  # identity - sensor IS at link position
-            '0', '0', '0',  # identity rotation
-            'front_lidar_link',                    # parent frame (URDF frame)
-            'scout_mini/base_link/front_lidar_sensor'  # child frame (Gazebo frame)
-        ],
-        parameters=[{'use_sim_time': use_sim_time}],
-    )
+    # DiffDrive publishes odom/tf with scout_mini/ prefix (gz-sim behavior).
+    # /odom_raw -> imu_odom_corrector -> /odom (corrected frame_ids)
+    # /odom -> odom_to_tf -> TF (clean odom -> base_link)
 
-    rear_lidar_static_tf = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='rear_lidar_static_tf',
-        arguments=[
-            '0', '0', '0',  # identity - sensor IS at link position
-            '0', '0', '0',  # identity rotation
-            'rear_lidar_link',                     # parent frame (URDF frame)
-            'scout_mini/base_link/rear_lidar_sensor'  # child frame (Gazebo frame)
-        ],
-        parameters=[{'use_sim_time': use_sim_time}],
-    )
-
-
-
-    # Bridge Gazebo model name prefix to ROS standard frame names
-    model_prefix_tf_odom = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='model_prefix_tf_odom',
-        arguments=['0', '0', '0', '0', '0', '0', 'odom', 'scout_mini/odom'],
-        parameters=[{'use_sim_time': use_sim_time}],
-    )
-
-    model_prefix_tf_base_link = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='model_prefix_tf_base_link',
-        arguments=['0', '0', '0', '0', '0', '0', 'scout_mini/base_link', 'base_link'],
+    # LiDAR frame_id fixer: strip scout_mini/ prefix, remap to URDF link names
+    # /front/scan (scout_mini/base_link/front_lidar_sensor) -> /front/scan_fixed (front_lidar_link)
+    # /rear/scan  (scout_mini/base_link/rear_lidar_sensor)  -> /rear/scan_fixed  (rear_lidar_link)
+    scan_frame_fixer = Node(
+        package='scout_mini_dual_lidar_gazebo',
+        executable='scan_frame_fixer.py',
+        name='scan_frame_fixer',
+        output='screen',
         parameters=[{'use_sim_time': use_sim_time}],
     )
 
@@ -184,6 +148,15 @@ def generate_launch_description():
         package='scout_mini_dual_lidar_gazebo',
         executable='imu_odom_corrector.py',
         name='imu_odom_corrector',
+        output='screen',
+        parameters=[{'use_sim_time': use_sim_time}],
+    )
+
+    # Odom-to-TF: publishes clean odom -> base_link TF from corrected /odom
+    odom_to_tf = Node(
+        package='scout_mini_dual_lidar_gazebo',
+        executable='odom_to_tf.py',
+        name='odom_to_tf',
         output='screen',
         parameters=[{'use_sim_time': use_sim_time}],
     )
@@ -249,11 +222,9 @@ def generate_launch_description():
     ld.add_action(node_robot_state_publisher)
     ld.add_action(spawn_entity)
     ld.add_action(gz_bridge)
-    ld.add_action(front_lidar_static_tf)
-    ld.add_action(rear_lidar_static_tf)
-    ld.add_action(model_prefix_tf_odom)
-    ld.add_action(model_prefix_tf_base_link)
+    ld.add_action(scan_frame_fixer)
     ld.add_action(imu_odom_corrector)
+    ld.add_action(odom_to_tf)
     ld.add_action(laser_merger)
     ld.add_action(node_rviz)
 

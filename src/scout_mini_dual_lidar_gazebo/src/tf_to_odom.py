@@ -30,6 +30,7 @@ class TfToOdom(Node):
         self.last_x = 0.0
         self.last_y = 0.0
         self.last_theta = 0.0
+        self.last_stamp = None
         self.initialized = False
 
         self.get_logger().info('TF to Odometry converter initialized')
@@ -48,9 +49,27 @@ class TfToOdom(Node):
         q = tf.transform.rotation
         theta = self.quaternion_to_yaw(q)
 
+        # Extract timestamp
+        tf_header = tf.header
+        if hasattr(tf_header, 'stamp'):
+            current_stamp = tf_header.stamp
+        else:
+            current_stamp = self.get_clock().now().to_msg()
+
         # Calculate velocity if initialized
         if self.initialized:
-            dt = 0.02  # Assume 50Hz
+            # Compute actual dt from timestamp difference
+            if self.last_stamp is not None:
+                dt_ns = (current_stamp.sec - self.last_stamp.sec) * 1e9 + \
+                        (current_stamp.nanosec - self.last_stamp.nanosec)
+                dt = dt_ns / 1e9
+            else:
+                dt = 0.02  # fallback for first frame
+
+            # Clamp dt to avoid divide-by-zero or huge velocity spikes
+            dt = max(dt, 0.001)
+            dt = min(dt, 0.5)
+
             vx = (x - self.last_x) / dt
             vy = (y - self.last_y) / dt
             vtheta = (theta - self.last_theta) / dt
@@ -63,9 +82,9 @@ class TfToOdom(Node):
 
             # Publish odometry
             odom = Odometry()
-            odom.header.stamp = self.get_clock().now().to_msg()
+            odom.header.stamp = current_stamp
             odom.header.frame_id = 'odom'
-            odom.child_frame_id = 'base_footprint'
+            odom.child_frame_id = 'base_link'
 
             odom.pose.pose.position.x = x
             odom.pose.pose.position.y = y
@@ -86,6 +105,7 @@ class TfToOdom(Node):
         self.last_x = x
         self.last_y = y
         self.last_theta = theta
+        self.last_stamp = current_stamp
 
     def quaternion_to_yaw(self, q: Quaternion) -> float:
         """Convert quaternion to yaw angle."""

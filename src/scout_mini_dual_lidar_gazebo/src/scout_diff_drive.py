@@ -14,8 +14,8 @@ class ScoutDiffDrive(Node):
         super().__init__('scout_diff_drive')
         
         # Parameters
-        self.declare_parameter('wheel_separation', 0.52)
-        self.declare_parameter('wheel_radius', 0.145)
+        self.declare_parameter('wheel_separation', 0.416503)
+        self.declare_parameter('wheel_radius', 0.100998)        
         
         self.wheel_separation = self.get_parameter('wheel_separation').value
         self.wheel_radius = self.get_parameter('wheel_radius').value

@@ -11,24 +11,25 @@ slam_toolbox:
     ceres_loss_function: HUBER_LOSS
 
     # ROS Parameters
-    odom_frame: odom_corrected
+    odom_frame: odom
     map_frame: map
     base_frame: base_link
     transform_timeout: 0.5
-    transform_tolerance: 0.1
+    transform_tolerance: 0.5
     scan_topic: /merged/scan
+    scan_queue_size: 30
     mode: mapping
     use_scan_matching: true
     use_scan_barycenter: true
 
     # Keyframe / correction frequency
-    # Increased to reduce ghosting — fewer keyframes = less duplicated walls
-    minimum_time_interval: 0.3
+    # Less frequent keyframes reduce noise/ghosting from slight misalignments
+    minimum_time_interval: 0.5
     transform_publish_period: 0.1
-    minimum_travel_distance: 2.0
-    minimum_travel_heading: 0.25
+    minimum_travel_distance: 0.5
+    minimum_travel_heading: 0.5
     max_cached_frames: 10000
-    map_update_interval: 1.0
+    map_update_interval: 2.0
 
     # Odometry noise — higher = trust scan matching more, lower = trust odom more
     # With frictionless model, odometry may slip; let SLAM correct via LiDAR
@@ -70,14 +71,14 @@ slam_toolbox:
     correlation_search_space_resolution: 0.01
     correlation_search_space_smear_deviation: 0.03
 
-    # Map range
+    # Map range — higher occ_thresh filters single-scan noise
     xmin: -30.0
     xmax: 30.0
     ymin: -30.0
     ymax: 30.0
     delta: 0.05
-    occ_thresh: 0.35
-    max_laser_range: 25.0
+    occ_thresh: 0.65
+    max_laser_range: 12.0
 
     # Map Saving
     map_resolution: 0.05
