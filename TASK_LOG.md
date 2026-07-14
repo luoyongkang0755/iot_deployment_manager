@@ -1166,3 +1166,34 @@ Create a comprehensive safety-first checklist for future physical Scout Mini tes
 ### Submitted Files
 - `reports/real_robot_testing_checklist.md` (new)
 - `TASK_LOG.md` (updated)
+
+---
+
+## Task 27 — Final README
+
+### Objective
+Create a comprehensive README so another student can reproduce the entire system without asking the author.
+
+### README Sections
+
+| Section | Content |
+|---------|---------|
+| Project Overview | Key capabilities, one-sentence summary |
+| System Architecture | ASCII diagram of Gazebo → sensors → Nav2 → RViz |
+| Required Software | Docker, ROS2 Humble, Gazebo, Nav2, SLAM Toolbox, Python |
+| Docker Build | Prerequisites, `docker build` command |
+| Docker Run | `bash docker/run.sh` with GUI support |
+| Workspace Build | `colcon build --symlink-install`, expected output |
+| Simulation Launch | Three options: full Nav2, Gazebo only, separated config |
+| Teleoperation | Keyboard control table |
+| Mapping (SLAM) | 4-step SLAM workflow |
+| Nav2 Launch | Simulation and real robot commands |
+| Three-Goal Test | `send_nav2_goals.py` usage |
+| Project Structure | Full directory tree with annotations |
+| Troubleshooting | 5 common issues with solutions |
+| Known Limitations | 6 documented limitations |
+| Real Robot Preparation | Quick reference commands + differences from simulation |
+
+### Submitted Files
+- `README.md` (updated — complete rewrite)
+- `TASK_LOG.md` (updated)
