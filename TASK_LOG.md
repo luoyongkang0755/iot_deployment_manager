@@ -1138,3 +1138,31 @@ launch/
 - `launch/real_robot/nav2_real_robot_launch.py` (new)
 - `reports/simulation_vs_real_robot.md` (new)
 - `TASK_LOG.md` (updated)
+
+---
+
+## Task 26 — Real Robot Testing Checklist
+
+### Objective
+Create a comprehensive safety-first checklist for future physical Scout Mini testing.
+
+### Files Created
+- `reports/real_robot_testing_checklist.md` — 6-phase deployment checklist
+
+### Checklist Phases
+
+| Phase | Description | Key Checks |
+|-------|-------------|------------|
+| 1 | Safety & Hardware | E-stop, battery, lift robot, clear area |
+| 2 | Communication & Drivers | CAN interface, LiDAR IPs, driver launch |
+| 3 | Validation (no movement) | TF tree, odometry, LiDAR data quality |
+| 4 | Low-Speed Motor Test | cmd_vel test with robot lifted, then ground contact |
+| 5 | Obstacle-Free Nav2 | Straight-line goal, turn-in-place, multi-point |
+| 6 | Post-Test Shutdown | Node teardown, CAN down, battery disconnect |
+
+### Stop Criteria
+8 emergency stop conditions defined: incorrect odometry, broken TF, bad LiDAR data, unexpected movement, vibration/noise, obstacle approach, physical hazards.
+
+### Submitted Files
+- `reports/real_robot_testing_checklist.md` (new)
+- `TASK_LOG.md` (updated)
