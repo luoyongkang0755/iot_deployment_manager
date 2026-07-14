@@ -1197,3 +1197,39 @@ Create a comprehensive README so another student can reproduce the entire system
 ### Submitted Files
 - `README.md` (updated — complete rewrite)
 - `TASK_LOG.md` (updated)
+
+---
+
+## Task 28 — Final Report
+
+### Objective
+Write a comprehensive technical report covering all aspects of the project.
+
+### Sections
+
+| # | Section | Content |
+|---|---------|---------|
+| 1 | Introduction | Project overview |
+| 2 | Assignment Objectives | 15 objectives table with status |
+| 3 | Repository Structure | Full directory tree |
+| 4 | Docker Environment | Build, run, packages included |
+| 5 | Scout Mini Simulation | URDF, Gazebo spawning, obstacle layout |
+| 6 | Dual LiDAR Simulation | Sensor specs, processing pipeline, frequency |
+| 7 | TF Tree & ROS Topics | `map → odom → base_link`, topic table |
+| 8 | Map Preparation | Map properties + SLAM workflow |
+| 9 | Nav2 Configuration | 8 nodes, DWB params, BT, costmaps |
+| 10 | Navigation Test Results | 3-goal table (100% success), log excerpts |
+| 11 | Issues and Fixes | 5 issues with root cause + solution details |
+| 12 | Limitations | 6 documented limitations |
+| 13 | Physical Robot Preparation | Config separation table, 6-phase checklist |
+| 14 | Conclusion | Achievements + verification metrics table |
+
+### Evidence Included
+
+- Gazebo screenshot, 3 RViz2 goal screenshots, TF tree image, dual LiDAR image
+- Navigation video, terminal log, topic list, LiDAR frequency data
+- All referenced via repository paths
+
+### Submitted Files
+- `reports/final_report.md` (new)
+- `TASK_LOG.md` (updated)
