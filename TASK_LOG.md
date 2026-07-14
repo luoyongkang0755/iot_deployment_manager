@@ -920,7 +920,51 @@ ros2 run tf2_ros tf2_echo base_link front_lidar_link  # Static transform
 - `reports/navigation_frames.md` (updated for actual TF tree)
 - `reports/frames_chinese.md` (updated for actual TF tree)
 - `TASK_LOG.md` (updated)
-- `TASK_LOG_CHINESE.md` (updated)
+
+---
+## Task 24 — Clean Build and Reproducibility Test
+
+### Objective
+Prove the project can be rebuilt from a clean state with zero errors.
+
+### Commands
+
+```bash
+cd /ws
+rm -rf build install log
+colcon build --symlink-install
+source install/setup.bash
+```
+
+### Build Results
+
+```
+Summary: 6 packages finished [1.22s]
+```
+
+| Package | Result | Time |
+|---------|--------|------|
+| scout_msgs | Success | 0.48s |
+| scout_description | Success | 0.33s |
+| scout_mini_dual_lidar_gazebo | Success | 0.11s |
+| ros2_learning_examples | Success | 1.07s |
+| ugv_sdk | Success | 0.29s |
+| scout_base | Success | 0.16s |
+
+### Errors & Fixes
+
+No errors. All 6 packages built on the first attempt, no manual intervention needed.
+
+### Verification
+
+```bash
+source install/setup.bash
+ros2 launch scout_mini_dual_lidar_gazebo nav2_launch.py
+```
+
+### Submitted Files
+- `reports/clean_build_test.md` (new)
+- `TASK_LOG.md` (updated)
 
 ---
 ## Task 19 — Minimal Nav2 Launch
@@ -1042,4 +1086,55 @@ The `send_nav2_goals.py` script:
 - `reports/nav2_three_goal_results.md` (new)
 - `src/send_nav2_goals.py` (new)
 - `CMakeLists.txt` (updated)
+- `TASK_LOG.md` (updated)
+
+
+---
+
+## Task 25 — Separate Simulation and Real Robot Configurations
+
+### Objective
+Prepare repository for future physical Scout Mini testing by separating simulation and real robot configs.
+
+### Directory Structure Created
+
+```
+config/
+├── simulation/
+│   └── nav2_params.yaml           # Simulation Nav2 params (use_sim_time: True)
+└── real_robot/
+    └── nav2_params.yaml           # Real robot Nav2 params (use_sim_time: False)
+
+launch/
+├── simulation/
+│   └── nav2_simulation_launch.py  # Full stack: Gazebo + robot + Nav2
+└── real_robot/
+    └── nav2_real_robot_launch.py  # Nav2 only (no Gazebo, no bridges)
+```
+
+### Key Differences
+
+| Aspect | Simulation | Real Robot |
+|--------|-----------|------------|
+| Time source | `use_sim_time: True` | `use_sim_time: False` |
+| Scan topic | `/merged/scan` (front+rear) | `/front/scan` |
+| Velocities | 0.5 m/s linear, 1.0 rad/s angular | 0.3 m/s, 0.5 rad/s (conservative) |
+| Odometry | Gazebo DiffDrive → correctors | `scout_base` driver directly |
+| Sensor processing | `scan_frame_fixer`, `laser_merger` | Not needed |
+| Gazebo bridges | Required | Not used |
+
+### Real Robot Deployment Checklist
+
+1. CAN interface: bring up `can0` at 500 kbps, launch `scout_base`
+2. LiDAR: configure Ethernet IP, launch vendor driver
+3. Emergency stop: verify physical E-stop works
+4. First test: obstacle-free, low speed (0.3 m/s)
+5. Frame verify: check `map → odom → base_link → front_lidar_link` TF chain
+
+### Submitted Files
+- `config/simulation/nav2_params.yaml` (new)
+- `config/real_robot/nav2_params.yaml` (new)
+- `launch/simulation/nav2_simulation_launch.py` (new)
+- `launch/real_robot/nav2_real_robot_launch.py` (new)
+- `reports/simulation_vs_real_robot.md` (new)
 - `TASK_LOG.md` (updated)
