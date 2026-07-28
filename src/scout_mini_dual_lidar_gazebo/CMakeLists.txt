@@ -19,6 +19,11 @@ install(DIRECTORY launch worlds params config urdf rviz maps
   DESTINATION share/${PROJECT_NAME}/
 )
 
+# Python 模块（DIRECTORY 安装是拷贝，修改 iot_deployment/ 后需重新 colcon build）
+install(DIRECTORY iot_deployment
+  DESTINATION lib/python3.10/site-packages
+)
+
 install(PROGRAMS
   src/tf_static_relay.py
   src/tf_to_odom.py
