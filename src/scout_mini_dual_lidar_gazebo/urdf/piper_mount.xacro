@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!--
+  Piper arm mount for Scout Mini chassis.
+
+  Includes the Piper description and rigidly attaches its root link
+  (piper_base_link) to the chassis base_link, on the center of the
+  chassis body top surface (z = chassis_top_z, the real visual top of
+  the Scout Mini body).
+
+  Expected to be included from scout_mini_gazebo.xacro, which defines
+  the chassis_top_z property.
+-->
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+    <xacro:include filename="$(find piper_description)/urdf/piper_description.xacro" />
+
+    <joint name="piper_mount_joint" type="fixed">
+        <origin xyz="0 0 ${chassis_top_z}" rpy="0 0 0" />
+        <parent link="base_link" />
+        <child link="piper_base_link" />
+    </joint>
+
+</robot>

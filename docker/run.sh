@@ -9,7 +9,7 @@ xhost +local:docker 2>/dev/null || true
 
 echo "Running container with GUI support.."
 docker run -it --rm \
-    --name scout_gazebo_mini \
+    --name scout_nav2 \
     --net=host \
     --env="DISPLAY=$DISPLAY" \
     --env="QT_X11_NO_MITSHM=1" \

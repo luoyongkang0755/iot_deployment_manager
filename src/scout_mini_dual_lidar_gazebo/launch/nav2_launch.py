@@ -90,7 +90,14 @@ def generate_launch_description():
     # Gazebo environment variables
     # ============================================================
     scout_description_parent = os.path.dirname(pkg_scout_description)
-    gz_resource_path = scout_description_parent + ':' + pkg_nav2 + '/worlds'
+    # Parent dir that contains the piper_description package share dir, so
+    # Gazebo can resolve model://piper_description/meshes/*.STL.
+    pkg_piper_description = get_package_share_directory('piper_description')
+    piper_description_parent = os.path.dirname(pkg_piper_description)
+    gz_resource_path = (
+        scout_description_parent + ':' +
+        piper_description_parent + ':' +
+        pkg_nav2 + '/worlds')
 
     set_env_vars = [
         SetEnvironmentVariable(name='GZ_SIM_RESOURCE_PATH', value=gz_resource_path),
@@ -127,6 +134,14 @@ def generate_launch_description():
             'gz_args': ['-v 4 ', world] if verbose else world,
         }.items(),
     )
+
+    # NOTE: no ROS-side joint_state_publisher here. Gazebo's
+    # gz-sim-joint-state-publisher-system (in scout_mini.gazebo) already
+    # publishes /joint_states for ALL joints (wheels + Piper joint1..8)
+    # with real physics angles; joint damping/friction keeps the arm at
+    # zero pose. A second ROS publisher on the same topic would conflict.
+    # Stage 5: joint_state_broadcaster (ros2_control) replaces the Gazebo
+    # plugin as the single joint-state source.
 
     # Spawn robot in Gazebo
     spawn_entity = Node(

@@ -24,6 +24,17 @@
     <xacro:property name="wheel_radius" value="0.08" />
     <xacro:property name="wheel_diameter" value="0.16" />
 
+    <!-- Chassis body visual top surface height above base_link (measured -->
+    <!-- from scout_mini_base_link2.dae). base_z_size (=0.235) is a nominal  -->
+    <!-- value that does NOT match the real body top; mounting the arm at    -->
+    <!-- base_z_size/2 leaves a ~6.3 cm floating gap. Use this for the arm.  -->
+    <xacro:property name="chassis_top_z" value="0.054" />
+
+    <!-- RS-AIRY LiDAR dimensions (cylinder). Height used to rest the -->
+    <!-- LiDAR base on the chassis top surface.                         -->
+    <xacro:property name="lidar_length" value="0.05" />
+    <xacro:property name="lidar_radius" value="0.04" />
+
     <!-- ============================================================ -->
     <!-- Gazebo configuration (not in URDF)                            -->
     <!-- ============================================================ -->
@@ -47,7 +58,7 @@
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
             <geometry>
-                <cylinder length="0.05" radius="0.04" />
+                <cylinder length="${lidar_length}" radius="${lidar_radius}" />
             </geometry>
             <material name="black">
                 <color rgba="0.1 0.1 0.1 1.0" />
@@ -56,7 +67,7 @@
         <collision>
             <origin xyz="0 0 0" rpy="0 0 0" />
             <geometry>
-                <cylinder length="0.05" radius="0.04" />
+                <cylinder length="${lidar_length}" radius="${lidar_radius}" />
             </geometry>
         </collision>
         <inertial>
@@ -67,7 +78,7 @@
     </link>
 
     <joint name="front_lidar_joint" type="fixed">
-        <origin xyz="${base_x_size/2 - 0.08} 0.0 ${base_z_size/2 - 0.03}" rpy="0 0 0" />
+        <origin xyz="${base_x_size/2 - 0.08} 0.0 ${chassis_top_z + lidar_length/2}" rpy="0 0 0" />
         <parent link="base_link" />
         <child link="front_lidar_link" />
     </joint>
@@ -79,7 +90,7 @@
         <visual>
             <origin xyz="0 0 0" rpy="0 0 0" />
             <geometry>
-                <cylinder length="0.05" radius="0.04" />
+                <cylinder length="${lidar_length}" radius="${lidar_radius}" />
             </geometry>
             <material name="black">
                 <color rgba="0.1 0.1 0.1 1.0" />
@@ -88,7 +99,7 @@
         <collision>
             <origin xyz="0 0 0" rpy="0 0 0" />
             <geometry>
-                <cylinder length="0.05" radius="0.04" />
+                <cylinder length="${lidar_length}" radius="${lidar_radius}" />
             </geometry>
         </collision>
         <inertial>
@@ -99,9 +110,14 @@
     </link>
 
     <joint name="rear_lidar_joint" type="fixed">
-        <origin xyz="${-base_x_size/2 + 0.08} 0.0 ${base_z_size/2 - 0.03}" rpy="0 0 3.14159" />
+        <origin xyz="${-base_x_size/2 + 0.08} 0.0 ${chassis_top_z + lidar_length/2}" rpy="0 0 3.14159" />
         <parent link="base_link" />
         <child link="rear_lidar_link" />
     </joint>
+
+    <!-- ============================================================ -->
+    <!-- Piper 6-axis arm, mounted on chassis top plate                -->
+    <!-- ============================================================ -->
+    <xacro:include filename="$(find scout_mini_dual_lidar_gazebo)/urdf/piper_mount.xacro" />
 
 </robot>
