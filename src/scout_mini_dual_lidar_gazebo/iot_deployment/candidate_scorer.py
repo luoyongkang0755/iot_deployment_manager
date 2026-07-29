@@ -8,6 +8,7 @@ import math
 
 from geometry_msgs.msg import PoseStamped
 
+from iot_deployment import declare_param
 from iot_deployment.candidate_generator import Candidate
 
 
@@ -32,18 +33,18 @@ class CandidateScorer:
                  reach_sigma=None, score_distance_weight=None,
                  score_heading_weight=None):
         if node is not None:
-            self.arm_reach_max = node.declare_parameter(
-                'arm_reach_max', self.DEFAULTS['arm_reach_max']).value
-            self.ideal_reach_ratio = node.declare_parameter(
-                'ideal_reach_ratio', self.DEFAULTS['ideal_reach_ratio']).value
-            self.reach_sigma = node.declare_parameter(
-                'reach_sigma', self.DEFAULTS['reach_sigma']).value
-            self.score_distance_weight = node.declare_parameter(
-                'score_distance_weight',
-                self.DEFAULTS['score_distance_weight']).value
-            self.score_heading_weight = node.declare_parameter(
-                'score_heading_weight',
-                self.DEFAULTS['score_heading_weight']).value
+            self.arm_reach_max = declare_param(
+                node, 'arm_reach_max', self.DEFAULTS['arm_reach_max'])
+            self.ideal_reach_ratio = declare_param(
+                node, 'ideal_reach_ratio', self.DEFAULTS['ideal_reach_ratio'])
+            self.reach_sigma = declare_param(
+                node, 'reach_sigma', self.DEFAULTS['reach_sigma'])
+            self.score_distance_weight = declare_param(
+                node, 'score_distance_weight',
+                self.DEFAULTS['score_distance_weight'])
+            self.score_heading_weight = declare_param(
+                node, 'score_heading_weight',
+                self.DEFAULTS['score_heading_weight'])
         else:
             self.arm_reach_max = (
                 arm_reach_max if arm_reach_max is not None

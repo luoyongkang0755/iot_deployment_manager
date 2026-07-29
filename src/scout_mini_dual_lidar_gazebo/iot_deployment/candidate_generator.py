@@ -9,6 +9,8 @@ from dataclasses import dataclass
 
 from geometry_msgs.msg import PoseStamped
 
+from iot_deployment import declare_param
+
 
 @dataclass
 class Candidate:
@@ -37,14 +39,14 @@ class CandidateGenerator:
     def __init__(self, node=None, arm_reach_min=None, arm_reach_max=None,
                  radius_count=None, angle_step=None):
         if node is not None:
-            self.arm_reach_min = node.declare_parameter(
-                'arm_reach_min', self.DEFAULTS['arm_reach_min']).value
-            self.arm_reach_max = node.declare_parameter(
-                'arm_reach_max', self.DEFAULTS['arm_reach_max']).value
-            self.radius_count = node.declare_parameter(
-                'candidate_radius_count', self.DEFAULTS['candidate_radius_count']).value
-            self.angle_step = node.declare_parameter(
-                'candidate_angle_step', self.DEFAULTS['candidate_angle_step']).value
+            self.arm_reach_min = declare_param(
+                node, 'arm_reach_min', self.DEFAULTS['arm_reach_min'])
+            self.arm_reach_max = declare_param(
+                node, 'arm_reach_max', self.DEFAULTS['arm_reach_max'])
+            self.radius_count = declare_param(
+                node, 'candidate_radius_count', self.DEFAULTS['candidate_radius_count'])
+            self.angle_step = declare_param(
+                node, 'candidate_angle_step', self.DEFAULTS['candidate_angle_step'])
         else:
             self.arm_reach_min = (
                 arm_reach_min if arm_reach_min is not None

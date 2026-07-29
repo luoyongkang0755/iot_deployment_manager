@@ -9,6 +9,7 @@ import logging
 
 from nav_msgs.msg import OccupancyGrid
 
+from iot_deployment import declare_param
 from iot_deployment.candidate_generator import Candidate
 
 
@@ -29,10 +30,10 @@ class OccupancyFilter:
     def __init__(self, node=None, robot_radius=None, map_required=None):
         self._map = None
         if node is not None:
-            self.robot_radius = node.declare_parameter(
-                'robot_radius', self.DEFAULTS['robot_radius']).value
-            self.map_required = node.declare_parameter(
-                'map_required', self.DEFAULTS['map_required']).value
+            self.robot_radius = declare_param(
+                node, 'robot_radius', self.DEFAULTS['robot_radius'])
+            self.map_required = declare_param(
+                node, 'map_required', self.DEFAULTS['map_required'])
             self._logger = node.get_logger()
             node.create_subscription(
                 OccupancyGrid, '/map', self._map_callback, 10)

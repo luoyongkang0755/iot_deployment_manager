@@ -9,6 +9,7 @@ import logging
 
 from geometry_msgs.msg import PoseStamped
 
+from iot_deployment import declare_param
 from iot_deployment.candidate_generator import Candidate
 
 
@@ -32,16 +33,16 @@ class ReachabilityFilter:
     def __init__(self, node=None, arm_reach_min=None, arm_reach_max=None,
                  base_link_z=None, gripper_z_offset=None, height_tolerance=None):
         if node is not None:
-            self.arm_reach_min = node.declare_parameter(
-                'arm_reach_min', self.DEFAULTS['arm_reach_min']).value
-            self.arm_reach_max = node.declare_parameter(
-                'arm_reach_max', self.DEFAULTS['arm_reach_max']).value
-            self.base_link_z = node.declare_parameter(
-                'base_link_z', self.DEFAULTS['base_link_z']).value
-            self.gripper_z_offset = node.declare_parameter(
-                'gripper_z_offset', self.DEFAULTS['gripper_z_offset']).value
-            self.height_tolerance = node.declare_parameter(
-                'height_tolerance', self.DEFAULTS['height_tolerance']).value
+            self.arm_reach_min = declare_param(
+                node, 'arm_reach_min', self.DEFAULTS['arm_reach_min'])
+            self.arm_reach_max = declare_param(
+                node, 'arm_reach_max', self.DEFAULTS['arm_reach_max'])
+            self.base_link_z = declare_param(
+                node, 'base_link_z', self.DEFAULTS['base_link_z'])
+            self.gripper_z_offset = declare_param(
+                node, 'gripper_z_offset', self.DEFAULTS['gripper_z_offset'])
+            self.height_tolerance = declare_param(
+                node, 'height_tolerance', self.DEFAULTS['height_tolerance'])
             self._logger = node.get_logger()
         else:
             self.arm_reach_min = (

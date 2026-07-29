@@ -292,14 +292,13 @@ def generate_launch_description():
         parameters=[params_file,
                     {'use_sim_time': use_sim_time}])
 
-    # RViz2 with Nav2 default view
-    nav2_rviz_config = os.path.join(pkg_nav2_bringup, 'rviz', 'nav2_default_view.rviz')
+    # RViz2：默认使用本包 rviz_config（可通过 rviz_config launch arg 覆盖）
     rviz = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
         output='screen',
-        arguments=['-d', nav2_rviz_config],
+        arguments=['-d', rviz_config],
         parameters=[{'use_sim_time': use_sim_time}],
         condition=IfCondition(use_rviz))
 

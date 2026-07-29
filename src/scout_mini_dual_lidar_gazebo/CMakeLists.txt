@@ -33,6 +33,7 @@ install(PROGRAMS
   src/imu_odom_corrector.py
   src/scan_frame_fixer.py
   src/send_nav2_goals.py
+  iot_deployment/deployment_approach_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
