@@ -86,7 +86,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')),
         launch_arguments={
-            'gz_args': ['-v 4 ', world] if verbose else world,
+            'gz_args': ['-v 4 -r ', world] if verbose else ['-r ', world],
         }.items(),
     )
 
@@ -142,8 +142,7 @@ def generate_launch_description():
         parameters=[{'use_sim_time': use_sim_time}],
     )
 
-    # IMU-corrected odometry — replaces DiffDrive angular with IMU gyro
-    # Fixes skid-steer rotation drift in odometry
+    # IMU-corrected odometry — fixes frame_id prefix for EKF consumption
     imu_odom_corrector = Node(
         package='scout_mini_dual_lidar_gazebo',
         executable='imu_odom_corrector.py',
@@ -152,13 +151,18 @@ def generate_launch_description():
         parameters=[{'use_sim_time': use_sim_time}],
     )
 
-    # Odom-to-TF: publishes clean odom -> base_link TF from corrected /odom
-    odom_to_tf = Node(
-        package='scout_mini_dual_lidar_gazebo',
-        executable='odom_to_tf.py',
-        name='odom_to_tf',
+    # robot_localization EKF: fuses wheel odom + IMU to suppress skid-steer
+    # yaw drift. Publishes odom->base_link TF directly (replaces odom_to_tf).
+    ekf_node = Node(
+        package='robot_localization',
+        executable='ekf_node',
+        name='ekf_localization',
         output='screen',
-        parameters=[{'use_sim_time': use_sim_time}],
+        parameters=[
+            os.path.join(pkg_scout_gazebo, 'config', 'ekf_params.yaml'),
+            {'use_sim_time': use_sim_time},
+        ],
+        remappings=[('odometry/filtered', '/odom')],
     )
 
     # Merge front + rear lidar scans into 360° scan for SLAM
@@ -224,7 +228,7 @@ def generate_launch_description():
     ld.add_action(gz_bridge)
     ld.add_action(scan_frame_fixer)
     ld.add_action(imu_odom_corrector)
-    ld.add_action(odom_to_tf)
+    ld.add_action(ekf_node)
     ld.add_action(laser_merger)
     ld.add_action(node_rviz)
 

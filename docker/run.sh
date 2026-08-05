@@ -11,6 +11,7 @@ echo "Running container with GUI support.."
 docker run -it --rm \
     --name scout_nav2 \
     --net=host \
+    --shm-size=1g \
     --env="DISPLAY=$DISPLAY" \
     --env="QT_X11_NO_MITSHM=1" \
     --volume="/tmp/.x11-unix:/tmp/.x11-unix:rw" \

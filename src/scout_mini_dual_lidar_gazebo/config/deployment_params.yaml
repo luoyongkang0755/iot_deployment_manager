@@ -3,7 +3,7 @@ deployment_approach_node:
   ros__parameters:
     # 候选生成
     arm_reach_min: 0.20        # Piper 近距离几何死区
-    arm_reach_max: 0.60        # Piper 工作半径 626.75mm，留余量
+    arm_reach_max: 0.40        # Piper 实际 place 臂展约 0.35m，留余量
     candidate_radius_count: 3  # 候选圈数
     candidate_angle_step: 30.0 # 每圈角度步长(度)
     # 可达性过滤
@@ -20,3 +20,5 @@ deployment_approach_node:
     map_required: false
     # 预留
     shelf_height: 0.5
+    # 接近即停：导航中止时，机器人距目标 <= 此距离则视为到达（碰到桌子等）
+    proximity_threshold: 1.0

@@ -1,0 +1,66 @@
+<?xml version="1.0" ?>
+<!--
+  Stage 5: IoT device model (small box) for the pick-and-place demo.
+
+  Spawned at runtime by the manipulation demo (see
+  iot_deployment_launch.py). Contains a DETACHABLE_JOINT that the
+  manipulation_node "creates" (attach) and "removes" (detach) via the
+  Gazebo Sim entity-factory services to simulate grasping.
+
+  Size 0.06 x 0.06 x 0.03 m, mass 0.1 kg, with proper inertia + collision.
+-->
+<sdf version="1.9">
+  <model name="iot_device">
+    <static>false</static>
+    <self_collide>false</self_collide>
+
+    <link name="iot_device_link">
+      <pose>0 0 0.015 0 0 0</pose>
+
+      <inertial>
+        <mass>0.1</mass>
+        <!-- Box inertia: I = m/12 * (a^2 + b^2) for size 0.06 0.06 0.03 -->
+        <inertia>
+          <ixx>3.75e-5</ixx>
+          <iyy>3.75e-5</iyy>
+          <izz>6.0e-5</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+
+      <collision name="iot_device_collision">
+        <geometry>
+          <box>
+            <size>0.06 0.06 0.03</size>
+          </box>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+
+      <visual name="iot_device_visual">
+        <geometry>
+          <box>
+            <size>0.06 0.06 0.03</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.1 0.6 0.9 1</ambient>
+          <diffuse>0.1 0.6 0.9 1</diffuse>
+          <specular>0.2 0.2 0.2 1</specular>
+        </material>
+      </visual>
+    </link>
+
+  </model>
+</sdf>
+
+

@@ -15,7 +15,7 @@ from rclpy.action import ActionClient
 from rclpy.action.client import ClientGoalHandle
 from action_msgs.msg import GoalStatus
 
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from std_msgs.msg import String, ColorRGBA
 from nav2_msgs.action import NavigateToPose
 from visualization_msgs.msg import Marker, MarkerArray
@@ -49,6 +49,15 @@ class DeploymentApproachNode(Node):
         self.create_subscription(
             PoseStamped, '/deployment_target', self._target_callback, 10)
 
+        # 接近即停：当机器人离目标足够近（或撞到桌子导致导航中止）时，
+        # 不再尝试下一个候选，直接视为到达并触发放置。
+        self._proximity_threshold = self.declare_parameter(
+            'proximity_threshold', 0.8).value  # m
+        self._robot_pose = None  # 最新 AMCL 定位位置 (x, y)
+        self.create_subscription(
+            PoseWithCovarianceStamped, '/amcl_pose',
+            self._amcl_pose_callback, 10)
+
         # 当前流程状态
         self._target = None          # 当前目标 PoseStamped
         self._valid = []             # 有效候选 list[Candidate]
@@ -62,6 +71,11 @@ class DeploymentApproachNode(Node):
     # ------------------------------------------------------------------
     # 目标回调：取消旧流程，启动新流程
     # ------------------------------------------------------------------
+    def _amcl_pose_callback(self, msg: PoseWithCovarianceStamped):
+        """跟踪机器人当前位置，用于接近即停判断。"""
+        self._robot_pose = (
+            msg.pose.pose.position.x, msg.pose.pose.position.y)
+
     def _target_callback(self, msg: PoseStamped):
         if msg.header.frame_id != 'map':
             self.get_logger().error(
@@ -175,10 +189,28 @@ class DeploymentApproachNode(Node):
             self.get_logger().info('导航被取消（收到新目标）')
             return
 
-        # ABORTED 或其他失败状态 -> 下一个候选
+        # ABORTED 或其他失败状态 -> 检查是否因接近障碍物（桌子）而停
+        # 如果机器人当前位置离目标足够近，视为"已到达"并触发放置。
+        if self._is_close_to_target():
+            self.get_logger().info(
+                '导航中止但机器人已接近目标（可能碰到桌子），视为到达')
+            self._publish_markers(selected=self._sorted[self._nav_index][0])
+            self._publish_status(STATUS_READY)
+            return
+
         self.get_logger().warn(f'导航失败 (status={status})，尝试下一个候选')
         self._nav_index += 1
         self._try_next_candidate()
+
+    def _is_close_to_target(self) -> bool:
+        """检查机器人当前位置是否在目标的接近阈值内。"""
+        if self._target is None or self._robot_pose is None:
+            return False
+        dx = self._robot_pose[0] - self._target.pose.position.x
+        dy = self._robot_pose[1] - self._target.pose.position.y
+        dist = math.hypot(dx, dy)
+        self.get_logger().info(f'机器人距目标 {dist:.2f} m (阈值 {self._proximity_threshold:.2f} m)')
+        return dist <= self._proximity_threshold
 
     # ------------------------------------------------------------------
     # 状态与 Marker 发布

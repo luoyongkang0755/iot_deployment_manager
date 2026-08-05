@@ -1,0 +1,56 @@
+# Stage 5: ros2_control controller definitions for the Piper arm.
+#
+# This file is consumed by the ign_ros2_control plugin (declared in
+# piper_description.xacro), which starts a controller_manager inside
+# Gazebo Sim for the robot model. Controllers are loaded + activated
+# by spawners in iot_deployment_launch.py after the sim is up.
+#
+# The controller_manager node name is /controller_manager (default for
+# ign_ros2_control); the joint_state_broadcaster publishes arm joint
+# states on /<model_name>/joint_states = /scout_mini/joint_states.
+
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz, matches ign_ros2_control default control loop
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    gripper_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+# 6-DOF arm trajectory controller (position command interface).
+arm_controller:
+  ros__parameters:
+    joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+      - joint5
+      - joint6
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    # Allow goals whose joints are a subset / unordered; we always send
+    # all 6 joints but keep this permissive for robustness.
+    allow_nonzero_velocity_at_trajectory_end: false
+    state_publish_rate: 50.0
+
+# Gripper open/close animation controller (single prismatic joint7).
+# joint8 is a passive mimic of joint7 and needs no controller.
+gripper_controller:
+  ros__parameters:
+    joints:
+      - joint7
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity
+    state_publish_rate: 50.0

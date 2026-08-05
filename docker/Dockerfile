@@ -52,6 +52,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 	ros-humble-slam-toolbox \
 	ros-humble-cartographer \
 	ros-humble-cartographer-ros \
+	# 阶段5：ros2_control 控制栈（Gazebo Sim / Fortress 用 ign_ros2_control） \
+	ros-humble-ros2-control \
+	ros-humble-ros2-controllers \
+	ros-humble-joint-trajectory-controller \
+	ros-humble-joint-state-broadcaster \
+	ros-humble-ign-ros2-control \
+	# EKF里程计融合（nav2_launch.py 中 ekf_localization 节点） \
+	ros-humble-robot-localization \
+	# Stage 5: ros2_control 机械臂控制 \
+	ros-humble-ros2-control \
+	ros-humble-ros2-controllers \
+	ros-humble-joint-trajectory-controller \
+	ros-humble-joint-state-broadcaster \
+	ros-humble-gz-ros2-control \
+	ros-humble-ign-ros2-control \
 	&& rm -rf /var/lib/apt/lists/*
 
 # 配置 rosdep 使用清华大学镜像源（解决 raw.githubusercontent.com 超时问题）

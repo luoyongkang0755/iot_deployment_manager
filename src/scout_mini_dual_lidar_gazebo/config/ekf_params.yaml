@@ -1,0 +1,79 @@
+# robot_localization EKF —— 融合轮式里程计 + IMU，抑制转弯角速度累积漂移。
+#
+# 数据流变更：
+#   旧: /odom_raw -> imu_odom_corrector -> /odom -> odom_to_tf -> TF
+#   新: /odom_raw (wheel) + /imu -> EKF -> /odometry/filtered -> TF
+#
+# 关键：EKF 用 IMU 的绝对姿态（yaw）和角速度融合，纠正 skid-steer
+# 打滑导致的转弯漂移。协方差配置见下方注释。
+
+ekf_localization:
+  ros__parameters:
+    frequency: 30.0
+    two_d_mode: true
+    publish_tf: true            # EKF 直接发布 odom->base_link TF（替换 odom_to_tf）
+    publish_acceleration: false
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom           # 局部 EKF：odom 坐标系
+
+    # ---- 传感器输入 ----
+    # odom0: 轮式里程计（imu_odom_corrector 清洗 frame_id 后的 /odom）
+    # imu0:  Gazebo 仿真 IMU（含无漂移陀螺仪 + 绝对姿态）
+    odom0: /odom
+    odom0_config: [true,  true,  false,    # x, y, z 位置
+                   false, false, true,    # roll, pitch, yaw（不用轮式yaw，靠IMU）
+                   true,  false, false,   # vx, vy, vz
+                   false, false, true,    # vroll, vpitch, vyaw
+                   false, false, false]   # ax, ay, az
+    odom0_differential: false
+    odom0_relative: false
+
+    imu0: /imu
+    imu0_config: [false, false, false,    # 位置全不用 IMU
+                  false, false, true,     # yaw 用 IMU 绝对姿态（关键：纠正转弯漂移）
+                  false, false, false,    # 线速度不用
+                  false, false, true,     # vyaw 用 IMU 陀螺仪角速度
+                  false, false, false]    # 加速度不用
+    imu0_differential: false
+    imu0_relative: false
+    # IMU yaw 可能有固定偏移（取决于安装朝向），去除使 0=正前方
+    imu0_remove_gravitational_acceleration: true
+
+    # ---- 协方差（核心调参）----
+    # 原理：协方差越小 = EKF 越信任该传感器。
+    # 差速轮在转弯时打滑严重，所以轮式 yaw/vyaw 的协方差要大（不信任）；
+    # 仿真 IMU 陀螺仪无漂移，所以 IMU yaw/vyaw 协方差要小（信任）。
+
+    # 轮式里程计协方差（原始 /odom_raw 通常没有可靠值，这里覆盖）
+    odom0_queue_size: 10
+    odom0_nodelay: true
+
+    # IMU 协方差
+    imu0_queue_size: 10
+    imu0_nodelay: true
+
+    # ---- EKF 内部过程噪声 ----
+    # 这些值控制 EKF 对自身预测的信任程度，值大 = 更依赖传感器修正
+    process_noise_covariance: [
+      0.05,  0.0,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.05,  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.0,   0.06,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.0,   0.0,    0.03,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.0,   0.0,    0.0,    0.03,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.0,   0.0,    0.0,    0.0,    0.06,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.0,   0.0,    0.0,    0.0,    0.0,    0.025,  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.0,   0.0,    0.0,    0.0,    0.0,    0.0,    0.025,  0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.0,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.04,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.0,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.0,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,
+      0.0,   0.0,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.01,   0.0,    0.0,
+      0.0,   0.0,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.01,   0.0,
+      0.0,   0.0,   0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.0,    0.01
+    ]
+
+    # ---- 其他 ----
+    use_sim_time: true
+    debug: false
+    debug_out_file: /tmp/ekf_debug.log

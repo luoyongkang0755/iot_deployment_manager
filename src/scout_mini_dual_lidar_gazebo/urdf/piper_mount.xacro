@@ -20,4 +20,26 @@
         <child link="piper_base_link" />
     </joint>
 
+    <!-- ============================================================ -->
+    <!-- Stage 5: DetachableJoint system plugin on the parent model    -->
+    <!-- (scout_mini). It welds <child_link> of <child_model> to the    -->
+    <!-- gripper on an Empty message to <attach_topic>, and breaks the  -->
+    <!-- weld on a message to <detach_topic>, leaving the device where  -->
+    <!-- it was released. Triggered via gz-transport `ign topic` CLI.   -->
+    <!-- NOTE: gripper_base is a fixed joint so sdformat lumps it into   -->
+    <!-- link6 and it is NOT a real link in SDF; link7 (a gripper        -->
+    <!-- finger) is a genuine link at the gripper tip, so we weld to it. -->
+    <!-- ============================================================ -->
+    <gazebo>
+        <plugin filename="ignition-gazebo-detachable-joint-system"
+                name="gz::sim::systems::DetachableJoint">
+            <parent_link>link7</parent_link>
+            <child_model>iot_device</child_model>
+            <child_link>iot_device_link</child_link>
+            <attach_topic>/iot_device/attach</attach_topic>
+            <detach_topic>/iot_device/detach</detach_topic>
+            <output_topic>/iot_device/detachable_joint/state</output_topic>
+        </plugin>
+    </gazebo>
+
 </robot>

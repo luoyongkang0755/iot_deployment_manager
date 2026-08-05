@@ -1,0 +1,88 @@
+# Stage 5: Pick-and-place joint-trajectory waypoints for the Piper arm.
+#
+# All arm motion for the manipulation demo is parameterized here; the
+# manipulation_node reads these poses and NEVER hardcodes joint values.
+#
+# Joint order for every arm pose: [joint1, joint2, joint3, joint4, joint5, joint6]
+#   joint1: base yaw          (rad,  -2.618 .. 2.618)
+#   joint2: shoulder pitch    (rad,   0     .. 3.14)
+#   joint3: elbow pitch       (rad,  -2.967 .. 0)
+#   joint4: wrist-1 pitch     (rad,  -1.745 .. 1.745)
+#   joint5: wrist-2 roll      (rad,  -1.22  .. 1.22)
+#   joint6: flange yaw        (rad,  -2.0944.. 2.0944)
+# Gripper: joint7 prismatic (m, 0 = closed .. 0.035 = open); joint8 mimics.
+#
+# The named poses below define the demo choreography. Positions are in
+# radians (arm) / metres (gripper). Tune to taste; keep within limits.
+
+manipulation_node:
+  ros__parameters:
+    # ---- Named arm poses (6 values each) ----
+    # Safe folded travel / home pose.
+    pose_home:        [0.0,  0.35, -0.55,  0.0,  0.30,  0.0]
+    # Above the IoT device on the ground at world (0.4, 0, 0), before
+    # descending. j1=0 faces straight forward; arm extended forward-down.
+    pose_pick_above:  [0.0,  2.40, -2.60,  0.0,  2.20,  0.0]
+    # Down at the device on the chassis top (x=0.2, z=0.069).
+    # FK-tuned: gripper ~0.20 m forward, ~0.07 m above ground.
+    pose_pick:        [0.0, 1.60, -1.70, 0.0, 1.60, 0.0]
+    # Compact carrying pose while the base navigates. Device held close to
+    # the chassis, clear of the front LiDAR.
+    pose_carry:       [0.0,  0.55, -0.95,  0.0,  0.55,  0.0]
+    # Above the placement target (shelf), before descending to place.
+    # FK-tuned: gripper ~0.45 m ahead of base (past front bumper 0.31 m),
+    # ~0.70 m above ground. Arm fully extended forward, lifted high to reach shelf.
+    pose_place_above: [0.0,  1.75, -1.40,  0.0,  1.30,  0.0]
+    # Down at the placement point on the shelf surface (shelf_height 0.5 m).
+    # FK-tuned: gripper ~0.45 m ahead of base, ~0.58 m above ground so the
+    # released device settles onto the 0.5 m shelf top.
+    pose_place:       [0.0,  1.85, -1.55,  0.0,  1.50,  0.0]
+
+    # ---- Gripper (joint7) positions, metres ----
+    gripper_open:   0.035
+    gripper_closed: 0.004
+
+    # ---- Timing (seconds) ----
+    # Duration for each arm move (time_from_start of the single waypoint).
+    arm_move_duration: 3.0
+    # Duration for each gripper open/close move.
+    gripper_move_duration: 1.5
+    # Extra settle wait after attach/detach before continuing.
+    attach_settle_time: 0.5
+    detach_settle_time: 0.5
+
+    # ---- Attach / detach (Gazebo Sim DETACHABLE_JOINT) ----
+    # World name must match the running Gazebo world.
+    world_name: simple_test_world
+    # Model + link the device gets attached to (parent = gripper finger).
+    # link7 is a genuine link at the gripper tip (gripper_base is lumped).
+    parent_model_name: scout_mini
+    parent_link_name: link7
+    # IoT device model + link (child) created by the spawner.
+    child_model_name: iot_device
+    child_link_name: iot_device_link
+
+    # ---- IoT device spawn (on chassis top, between arm base and front LiDAR) ----
+    # 机械臂根部(x=0)与前雷达(x=0.23)中间，z=底盘顶部(0.054)+设备半高(0.015)=0.069。
+    iot_spawn_x: 0.115
+    iot_spawn_y: 0.0
+    iot_spawn_z: 0.35
+    iot_spawn_yaw: 0.0
+
+    # ---- Placement target (deployment shelf) ----
+    # The shelf pose in the map frame. After pick completes, the node
+    # auto-publishes this to /deployment_target so the whole pipeline
+    # (navigate -> place) runs without any manual goal injection.
+    target_x: 3.0
+    target_y: -3.0
+    target_z: 0.5
+    target_yaw: 0.0
+
+    # ---- Placement offset ----
+    # Extra z lift applied above the target pose when detaching so the
+    # device settles onto the shelf surface (half device height + margin).
+    place_z_offset: 0.03
+
+    # ---- Action / service names ----
+    arm_action_name: /arm_controller/follow_joint_trajectory
+    gripper_action_name: /gripper_controller/follow_joint_trajectory

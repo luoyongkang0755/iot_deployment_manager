@@ -21,10 +21,8 @@ class LaserMerger(Node):
         self.front_tf = None
         self.rear_tf = None
 
-        # Robot hull half-dimensions (scout_mini base: 0.62 x 0.585)
-        # Filter out points that fall within this hull after TF to base_link
-        self.hull_half_x = 0.31
-        self.hull_half_y = 0.29
+        # Robot hull + arm filter handled in _correct_and_filter via an
+        # elliptical exclusion zone (front-weighted to cover the Piper arm).
 
         self.front_sub = self.create_subscription(
             LaserScan, '/front/scan_fixed', self.front_callback, 10)
@@ -109,7 +107,14 @@ class LaserMerger(Node):
         self.merged_pub.publish(merged)
 
     def _correct_and_filter(self, range_val, cos_a, sin_a, tf):
-        """Correct range by lidar-to-base_link offset, then filter out robot hull points."""
+        """Correct range by lidar-to-base_link offset, then filter out robot hull points.
+
+        The 360° lidars can see the mounted Piper arm and any carried IoT
+        device, which would otherwise inject phantom obstacles into the
+        costmaps.  We therefore exclude any return that falls inside a
+        conservative elliptical exclusion zone covering both the chassis
+        and the arm envelope (front extends further than rear).
+        """
         if not math.isfinite(range_val) or range_val <= 0.01 or tf is None:
             return range_val
 
@@ -121,8 +126,10 @@ class LaserMerger(Node):
         bx = cos_yaw * lx - sin_yaw * ly + dx
         by = sin_yaw * lx + cos_yaw * ly + dy
 
-        # Filter: drop points that fall inside the robot hull
-        if abs(bx) <= self.hull_half_x and abs(by) <= self.hull_half_y:
+        # Elliptical exclusion zone, front-weighted to cover the arm.
+        # Semi-axes: front 0.55 / rear 0.45 in x, 0.32 in y.
+        ax_eff = 0.45 if bx < 0 else 0.55
+        if (bx / ax_eff) ** 2 + (by / 0.32) ** 2 <= 1.0:
             return float('inf')
 
         return math.sqrt(bx * bx + by * by)

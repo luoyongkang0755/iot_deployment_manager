@@ -83,8 +83,8 @@ def generate_launch_description():
 
     declare_spawn_yaw = DeclareLaunchArgument(
         'spawn_yaw',
-        default_value='3.14159',
-        description='Initial yaw angle (radians) for robot spawn')
+        default_value='0.0',
+        description='Initial yaw angle (radians) for robot spawn; 0 = 车头朝世界 +X')
 
     # ============================================================
     # Gazebo environment variables
@@ -131,17 +131,18 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')),
         launch_arguments={
-            'gz_args': ['-v 4 ', world] if verbose else world,
+            'gz_args': ['-v 4 -r ', world] if verbose else ['-r ', world],
         }.items(),
     )
 
-    # NOTE: no ROS-side joint_state_publisher here. Gazebo's
-    # gz-sim-joint-state-publisher-system (in scout_mini.gazebo) already
-    # publishes /joint_states for ALL joints (wheels + Piper joint1..8)
-    # with real physics angles; joint damping/friction keeps the arm at
-    # zero pose. A second ROS publisher on the same topic would conflict.
-    # Stage 5: joint_state_broadcaster (ros2_control) replaces the Gazebo
-    # plugin as the single joint-state source.
+    # Stage 5: /joint_states now comes from the ros2_control
+    # joint_state_broadcaster (ign_ros2_control inside Gazebo Sim),
+    # published on /scout_mini/joint_states in ROS. The old Gazebo
+    # gz-sim-joint-state-publisher-system was removed from
+    # scout_mini.gazebo so there is exactly one joint-state source.
+    # The bridge below relays that ROS topic onto /joint_states for
+    # robot_state_publisher (arm joints); wheel odometry TF comes
+    # from the DiffDrive plugin via /odom_raw.
 
     # Spawn robot in Gazebo
     spawn_entity = Node(
@@ -172,7 +173,9 @@ def generate_launch_description():
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
             '/odom_raw@nav_msgs/msg/Odometry[gz.msgs.Odometry',
-            '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
+            # ROS-side joint states from joint_state_broadcaster ->
+            # onto /joint_states for robot_state_publisher.
+            '/scout_mini/joint_states@sensor_msgs/msg/JointState]gz.msgs.Model',
             '/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
             '/front/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
             '/rear/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
@@ -195,12 +198,18 @@ def generate_launch_description():
         parameters=[{'use_sim_time': use_sim_time}],
     )
 
-    odom_to_tf = Node(
-        package='scout_mini_dual_lidar_gazebo',
-        executable='odom_to_tf.py',
-        name='odom_to_tf',
+    # robot_localization EKF: fuses wheel odom + IMU to suppress skid-steer
+    # yaw drift. Publishes odom->base_link TF directly (replaces odom_to_tf).
+    ekf_node = Node(
+        package='robot_localization',
+        executable='ekf_node',
+        name='ekf_localization',
         output='screen',
-        parameters=[{'use_sim_time': use_sim_time}],
+        parameters=[
+            os.path.join(pkg_nav2, 'config', 'ekf_params.yaml'),
+            {'use_sim_time': use_sim_time},
+        ],
+        remappings=[('odometry/filtered', '/odom')],
     )
 
     laser_merger = Node(
@@ -329,7 +338,7 @@ def generate_launch_description():
     ld.add_action(gz_bridge)
     ld.add_action(scan_frame_fixer)
     ld.add_action(imu_odom_corrector)
-    ld.add_action(odom_to_tf)
+    ld.add_action(ekf_node)
     ld.add_action(laser_merger)
 
     # Nav2 navigation stack
