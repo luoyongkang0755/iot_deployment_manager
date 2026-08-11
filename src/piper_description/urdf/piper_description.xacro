@@ -82,7 +82,7 @@
       upper="2.618"
       effort="100"
       velocity="5" />
-    <dynamics damping="10.0" friction="10.0" />
+    <dynamics damping="1.0" friction="1.0" />
   </joint>
   <link
     name="link2">
@@ -133,7 +133,7 @@
       upper="3.14"
       effort="100"
       velocity="5" />
-    <dynamics damping="10.0" friction="10.0" />
+    <dynamics damping="1.0" friction="1.0" />
   </joint>
   <link
     name="link3">
@@ -184,7 +184,7 @@
       upper="0"
       effort="100"
       velocity="5" />
-    <dynamics damping="10.0" friction="10.0" />
+    <dynamics damping="1.0" friction="1.0" />
   </joint>
   <link
     name="link4">
@@ -234,7 +234,7 @@
       upper="1.745"
       effort="100"
       velocity="5" />
-    <dynamics damping="10.0" friction="10.0" />
+    <dynamics damping="1.0" friction="1.0" />
   </joint>
   <link
     name="link5">
@@ -284,7 +284,7 @@
       upper="1.22"
       effort="100"
       velocity="5" />
-    <dynamics damping="10.0" friction="10.0" />
+    <dynamics damping="1.0" friction="1.0" />
   </joint>
   <link
     name="link6">
@@ -334,7 +334,7 @@
       upper="2.0944"
       effort="100"
       velocity="3" />
-    <dynamics damping="10.0" friction="10.0" />
+    <dynamics damping="1.0" friction="1.0" />
   </joint>
   <link
     name="gripper_base">

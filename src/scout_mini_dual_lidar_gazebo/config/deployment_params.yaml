@@ -2,9 +2,9 @@
 deployment_approach_node:
   ros__parameters:
     # 候选生成
-    arm_reach_min: 0.20        # Piper 近距离几何死区
-    arm_reach_max: 0.40        # Piper 实际 place 臂展约 0.35m，留余量
-    candidate_radius_count: 3  # 候选圈数
+    arm_reach_min: 0.25        # 最小接近距离（支柱在后缘，无障碍）
+    arm_reach_max: 0.50        # 最大放置半径
+    candidate_radius_count: 2  # 候选圈数
     candidate_angle_step: 30.0 # 每圈角度步长(度)
     # 可达性过滤
     base_link_z: 0.054         # 机械臂安装高度

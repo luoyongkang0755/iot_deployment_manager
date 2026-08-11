@@ -377,27 +377,28 @@
     </model>
 
     <!-- ============================================================ -->
-    <!-- Deployment shelf: static worktable, tabletop at z = 0.5 m      -->
-    <!-- (shelf_height). Tabletop 1.0 x 0.6 m, four legs. Purely       -->
-    <!-- static prop, no IoT device on it until stage 5.               -->
+    <!-- Deployment shelf: floating tabletop on a single central pillar  -->
+    <!-- Tabletop 0.40 x 0.30 m, top surface at z = 0.35 m.             -->
+    <!-- Single thin pillar 0.05 x 0.05 m, supporting the center.       -->
+    <!-- Purely static prop, no IoT device on it until stage 5.        -->
     <!-- ============================================================ -->
     <model name="deployment_shelf">
       <static>true</static>
       <pose>3.0 -3.0 0 0 0 0</pose>
-      <!-- Tabletop: top surface at 0.5 m, board thickness 0.04 m -->
+      <!-- Tabletop: top surface at 0.35 m, board thickness 0.03 m -->
       <link name="tabletop">
-        <pose>0 0 0.48 0 0 0</pose>
+        <pose>0 0 0.335 0 0 0</pose>
         <collision name="tabletop_collision">
           <geometry>
             <box>
-              <size>1.0 0.6 0.04</size>
+              <size>0.40 0.30 0.03</size>
             </box>
           </geometry>
         </collision>
         <visual name="tabletop_visual">
           <geometry>
             <box>
-              <size>1.0 0.6 0.04</size>
+              <size>0.40 0.30 0.03</size>
             </box>
           </geometry>
           <material>
@@ -406,27 +407,48 @@
           </material>
         </visual>
       </link>
-      <!-- Solid base: fills the volume from ground to underside of the
-           tabletop (z=0..0.46). Replaces the four open legs so the
-           shelf is a solid block with no hollow gap underneath. -->
-      <link name="base">
-        <pose>0 0 0.23 0 0 0</pose>
-        <collision name="base_collision">
+      <!-- Pillar at the back edge of the table so the robot can approach
+           from the front without hitting anything. -->
+      <link name="pillar">
+        <pose>-0.18 0 0.16 0 0 0</pose>
+        <collision name="pillar_collision">
           <geometry>
             <box>
-              <size>1.0 0.6 0.46</size>
+              <size>0.05 0.05 0.32</size>
             </box>
           </geometry>
         </collision>
-        <visual name="base_visual">
+        <visual name="pillar_visual">
           <geometry>
             <box>
-              <size>1.0 0.6 0.46</size>
+              <size>0.05 0.05 0.32</size>
             </box>
           </geometry>
           <material>
-            <ambient>0.3 0.3 0.3 1</ambient>
-            <diffuse>0.3 0.3 0.3 1</diffuse>
+            <ambient>0.25 0.25 0.25 1</ambient>
+            <diffuse>0.25 0.25 0.25 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <!-- Base plate under the pillar -->
+      <link name="base_plate">
+        <pose>-0.18 0 0.01 0 0 0</pose>
+        <collision name="base_plate_collision">
+          <geometry>
+            <box>
+              <size>0.10 0.10 0.02</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="base_plate_visual">
+          <geometry>
+            <box>
+              <size>0.10 0.10 0.02</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.25 0.25 0.25 1</ambient>
+            <diffuse>0.25 0.25 0.25 1</diffuse>
           </material>
         </visual>
       </link>

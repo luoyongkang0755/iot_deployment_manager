@@ -20,23 +20,22 @@ manipulation_node:
     # ---- Named arm poses (6 values each) ----
     # Safe folded travel / home pose.
     pose_home:        [0.0,  0.35, -0.55,  0.0,  0.30,  0.0]
-    # Above the IoT device on the ground at world (0.4, 0, 0), before
-    # descending. j1=0 faces straight forward; arm extended forward-down.
-    pose_pick_above:  [0.0,  2.40, -2.60,  0.0,  2.20,  0.0]
-    # Down at the device on the chassis top (x=0.2, z=0.069).
-    # FK-tuned: gripper ~0.20 m forward, ~0.07 m above ground.
-    pose_pick:        [0.0, 1.60, -1.70, 0.0, 1.60, 0.0]
+    # Above the IoT device on the chassis top, before descending.
+    # FK-calibrated (base_link 系): link7 at x=0.145, z=0.108 (高于 pick 5cm).
+    pose_pick_above:  [0.0,  1.00, -0.40,  0.0,  0.90,  0.0]
+    # Gripper at the device on the chassis top (x=0.115, z=0.069).
+    # FK-calibrated (base_link 系): link7 at x=0.106, z=0.057 (误差 1.6cm).
+    # 所有关节严格在 URDF 限位内。
+    pose_pick:        [0.0,  1.40, -0.40,  0.0,  0.90,  0.0]
     # Compact carrying pose while the base navigates. Device held close to
     # the chassis, clear of the front LiDAR.
     pose_carry:       [0.0,  0.55, -0.95,  0.0,  0.55,  0.0]
     # Above the placement target (shelf), before descending to place.
-    # FK-tuned: gripper ~0.45 m ahead of base (past front bumper 0.31 m),
-    # ~0.70 m above ground. Arm fully extended forward, lifted high to reach shelf.
-    pose_place_above: [0.0,  1.75, -1.40,  0.0,  1.30,  0.0]
-    # Down at the placement point on the shelf surface (shelf_height 0.5 m).
-    # FK-tuned: gripper ~0.45 m ahead of base, ~0.58 m above ground so the
-    # released device settles onto the 0.5 m shelf top.
-    pose_place:       [0.0,  1.85, -1.55,  0.0,  1.50,  0.0]
+    # Arm extended forward, all joints within URDF limits.
+    # 精确终态由 set_pose 保证，这里只需粗调释放点在台面上方。
+    pose_place_above: [0.0,  1.60, -1.20,  0.0,  1.00,  0.0]
+    # Down at the placement point on the shelf surface.
+    pose_place:       [0.0,  1.80, -1.40,  0.0,  1.00,  0.0]
 
     # ---- Gripper (joint7) positions, metres ----
     gripper_open:   0.035
@@ -62,11 +61,15 @@ manipulation_node:
     child_model_name: iot_device
     child_link_name: iot_device_link
 
+    # ---- mock_pick: 跳过取货直接验证放置（开发调试用） ----
+    mock_pick: false
+
     # ---- IoT device spawn (on chassis top, between arm base and front LiDAR) ----
     # 机械臂根部(x=0)与前雷达(x=0.23)中间，z=底盘顶部(0.054)+设备半高(0.015)=0.069。
+    # 世界坐标：base_link世界z=0.181，iot_spawn_z = 0.181 + 0.069 = 0.250
     iot_spawn_x: 0.115
     iot_spawn_y: 0.0
-    iot_spawn_z: 0.35
+    iot_spawn_z: 0.250
     iot_spawn_yaw: 0.0
 
     # ---- Placement target (deployment shelf) ----
@@ -75,7 +78,7 @@ manipulation_node:
     # (navigate -> place) runs without any manual goal injection.
     target_x: 3.0
     target_y: -3.0
-    target_z: 0.5
+    target_z: 0.35
     target_yaw: 0.0
 
     # ---- Placement offset ----

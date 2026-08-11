@@ -64,6 +64,8 @@ class ManipulationNode(Node):
         self._child_model = self.declare_parameter('child_model_name', 'iot_device').value
         self._child_link = self.declare_parameter('child_link_name', 'iot_device_link').value
         self._place_z_offset = self.declare_parameter('place_z_offset', 0.03).value
+        # mock_pick: 跳过取货，直接进入放置流程（开发调试用）
+        self._mock_pick = self.declare_parameter('mock_pick', False).value
         # Placement target (deployment shelf) for auto-triggering navigation.
         self._target_x = self.declare_parameter('target_x', 3.0).value
         self._target_y = self.declare_parameter('target_y', -3.0).value
@@ -141,6 +143,12 @@ class ManipulationNode(Node):
             self.get_logger().error(f'初始 detach 失败: {why}，发布 MANIPULATION_FAILED')
             self._publish_status(STATUS_MANIP_FAILED)
             return
+        if self._mock_pick:
+            self.get_logger().info('mock_pick=true，跳过取货直接进入放置流程')
+            self._picked = True
+            self._holding = False  # mock 模式下设备未真正被抓取
+            self._run_place_sequence()
+            return
         self.get_logger().info('初始焊接已解除，开始取货流程')
         self._run_pick_sequence()
 
@@ -180,6 +188,7 @@ class ManipulationNode(Node):
         self.get_logger().info(f'取货流程开始（第 {self._pick_retries} 次尝试）')
         steps = [
             ('home', lambda cb: self._move_arm('home', cb)),
+            ('open', lambda cb: self._move_gripper(self._gripper_open, cb)),
             ('pick_above', lambda cb: self._move_arm('pick_above', cb)),
             ('pick', lambda cb: self._move_arm('pick', cb)),
             ('close', lambda cb: self._move_gripper(self._gripper_closed, cb)),
@@ -276,6 +285,7 @@ class ManipulationNode(Node):
             ('place', lambda cb: self._move_arm('place', cb)),
             ('detach', self._detach),
             ('settle_detach', lambda cb: self._wait(self._detach_settle, cb)),
+            ('set_pose', self._set_device_pose),
             ('open', lambda cb: self._move_gripper(self._gripper_open, cb)),
             ('place_above2', lambda cb: self._move_arm('place_above', cb)),
             ('home', lambda cb: self._move_arm('home', cb)),
@@ -409,6 +419,76 @@ class ManipulationNode(Node):
     def _detach(self, done):
         self.get_logger().info(f'detach: 断开与 {self._parent_link} 的焊接')
         self._run_ign_topic(self._detach_topic, 'detach', done)
+
+    # ------------------------------------------------------------------
+    # Set device pose via Gazebo Sim set_pose service.
+    # 把设备瞬移到目标位姿 + place_z_offset，速度清零。
+    # 用 `ign service` CLI 调用 /world/<world>/set_pose。
+    # ------------------------------------------------------------------
+    def _set_device_pose(self, done):
+        # 计算设备最终落点：目标位姿 + z_offset
+        final_z = self._target_z + self._place_z_offset
+        self.get_logger().info(
+            f'set_pose: 瞬移 {self._child_model} 到 '
+            f'({self._target_x:.2f}, {self._target_y:.2f}, {final_z:.2f})')
+
+        # 构造 gz Pose proto 字符串
+        # ignition.msgs.Pose 需要 name 指定模型，position + orientation 设置位姿
+        pose_proto = (
+            f'name: "{self._child_model}" '
+            f'position {{ x: {self._target_x} y: {self._target_y} z: {final_z} }} '
+            f'orientation {{ x: 0 y: 0 z: 0 w: 1 }}'
+        )
+        cmd = [
+            'ign', 'service',
+            '-s', f'/world/{self._world}/set_pose',
+            '--reqtype', 'ignition.msgs.Pose',
+            '--reptype', 'ignition.msgs.Boolean',
+            '--timeout', '5000',
+            '--req', pose_proto,
+        ]
+        self._run_subprocess(cmd, 'set_pose', done)
+
+    def _run_subprocess(self, cmd, label, done):
+        """通用异步子进程执行器。"""
+        state = {'finished': False, 'timers': []}
+
+        def finish(ok, why=''):
+            if state['finished']:
+                return
+            state['finished'] = True
+            for t in state['timers']:
+                t.cancel()
+            done(ok, why)
+
+        try:
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        except Exception as exc:
+            finish(False, f'{label} 调用异常: {exc}')
+            return
+
+        def poll():
+            if state['finished']:
+                return
+            rc = proc.poll()
+            if rc is None:
+                return
+            if rc == 0:
+                finish(True)
+            else:
+                err = ((proc.stderr.read() if proc.stderr else '') +
+                       (proc.stdout.read() if proc.stdout else '')).strip()
+                finish(False, f'{label} 失败: {err[:200]}')
+
+        def on_timeout():
+            if state['finished']:
+                return
+            proc.kill()
+            finish(False, f'{label} 超时')
+
+        state['timers'].append(self.create_timer(0.2, poll))
+        state['timers'].append(self.create_timer(10.0, on_timeout))
 
     def _run_ign_topic(self, topic, label, done):
         cmd = [
